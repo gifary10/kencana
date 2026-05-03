@@ -4,69 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1e293b">
-  <title>KPT Project</title>
+  <title>KPT</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="style.css" rel="stylesheet">
 </head>
 <body>
 
-<!-- Top Navbar (Mobile & Desktop) -->
+<!-- Top Navbar -->
 <nav class="app-navbar no-print" id="appNavbar">
   <div class="app-navbar__left">
+    <div class="app-navbar__brand">
+      <div class="app-navbar__brand-logo" id="navbarBrandLogo">
+        <img src="logo.png" alt="KPT Logo">
+      </div>
+      <span class="app-navbar__brand-text">KPT Project, safety & finance management system</span>
+    </div>
+  </div>
+  <div class="app-navbar__right">
+    <span id="navbarLoadingSpinner" style="display:none; margin-right: 12px;">
+      <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+    </span>
     <button class="app-navbar__toggler" id="sidebarToggler" onclick="AppNavbar.toggleSidebar()" title="Toggle Menu">
       <i class="bi bi-list"></i>
     </button>
-    <div class="app-navbar__brand">
-      <div class="app-navbar__brand-logo" id="navbarBrandLogo">
-        <i class="bi bi-building"></i>
-      </div>
-      <span class="app-navbar__brand-text">KPT Project</span>
-    </div>
-  </div>
-  
-  <div class="app-navbar__right">
-    <!-- Breadcrumb / Current Page -->
-    <div class="app-navbar__breadcrumb" id="navbarBreadcrumb">
-      <i class="bi bi-speedometer2"></i>
-      <span>Dashboard</span>
-    </div>
-    
-    <!-- User Info Dropdown -->
-    <div class="app-navbar__user dropdown" id="navbarUserDropdown">
-      <button class="app-navbar__user-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        <div class="app-navbar__user-avatar" id="navbarUserAvatar">
-          <i class="bi bi-person-circle"></i>
-        </div>
-        <div class="app-navbar__user-info" id="navbarUserInfo">
-          <span class="app-navbar__user-name">User</span>
-          <span class="app-navbar__user-role">Role</span>
-        </div>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><h6 class="dropdown-header" id="dropdownUserHeader">User</h6></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="#" onclick="AppAuth.logout()"><i class="bi bi-box-arrow-right"></i> Keluar</a></li>
-      </ul>
-    </div>
   </div>
 </nav>
 
 <!-- Sidebar Navigation -->
 <nav class="app-sidebar no-print" id="appSidebar">
-  <div class="app-sidebar__brand">
-    <div class="app-sidebar__brand-logo" id="sidebarBrandLogo">
-      <i class="bi bi-building"></i>
-    </div>
-    <span class="app-sidebar__brand-text">KPT Project</span>
-  </div>
-  
   <div class="app-sidebar__nav">
     <div class="nav-section-label">Utama</div>
     <a href="#dashboard" class="nav-item" data-route="dashboard" onclick="AppNavbar.closeSidebarOnMobile()">
       <span class="nav-item__icon"><i class="bi bi-speedometer2"></i></span> Dashboard
     </a>
-    
     <div class="nav-section-label">Manajemen</div>
     <a href="#perusahaan" class="nav-item" data-route="perusahaan" onclick="AppNavbar.closeSidebarOnMobile()">
       <span class="nav-item__icon"><i class="bi bi-building"></i></span> Perusahaan
@@ -83,23 +54,29 @@
     <a href="#manpower" class="nav-item" data-route="manpower" onclick="AppNavbar.closeSidebarOnMobile()">
       <span class="nav-item__icon"><i class="bi bi-people"></i></span> Man Power
     </a>
-    
     <div class="nav-section-label">Logistik & Laporan</div>
     <a href="#pembelian" class="nav-item" data-route="pembelian" onclick="AppNavbar.closeSidebarOnMobile()">
-      <span class="nav-item__icon"><i class="bi bi-cart"></i></span> Pembelian
+      <span class="nav-item__icon"><i class="bi bi-cart"></i></span> Cost Project
     </a>
     <a href="#laporan" class="nav-item" data-route="laporan" onclick="AppNavbar.closeSidebarOnMobile()">
       <span class="nav-item__icon"><i class="bi bi-file-earmark-pdf"></i></span> Laporan
     </a>
-
     <div class="nav-section-label" id="navSectionAdmin" style="display:none;">Pengaturan</div>
     <a href="#akun" class="nav-item" data-route="akun" id="navItemAkun" style="display:none;" onclick="AppNavbar.closeSidebarOnMobile()">
       <span class="nav-item__icon"><i class="bi bi-people-fill"></i></span> Manajemen Akun
     </a>
   </div>
-  
-  <div class="app-sidebar__footer">
-    <i class="bi bi-database"></i> KPT Project v4.0
+
+  <div class="sidebar-user-info" id="sidebarUserInfo">
+    <div class="sidebar-user-info__header">
+      <div class="sidebar-user-details">
+        <div class="sidebar-user-name" id="sidebarUserName">User</div>
+        <div class="sidebar-user-role" id="sidebarUserRole">Role</div>
+      </div>
+    </div>
+    <button class="sidebar-user-logout" onclick="AppAuth.logout()">
+      <i class="bi bi-box-arrow-right"></i> Keluar
+    </button>
   </div>
 </nav>
 
@@ -107,23 +84,14 @@
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="AppNavbar.closeSidebar()"></div>
 
 <!-- Main Content Area -->
-<main class="app-main-content" id="appMainContent">
-  <div class="text-center py-5">
-    <div class="spinner-border text-warning" role="status">
-      <span class="visually-hidden">Loading...</span>
-    </div>
-    <p class="mt-3 text-muted">Memuat KPT Project...</p>
-  </div>
-</main>
+<main class="app-main-content" id="appMainContent"></main>
 
 <!-- Project Detail Modal -->
 <div class="modal fade" id="projectDetailModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="projectDetailTitle">
-          <i class="bi bi-clipboard-data"></i> Detail Proyek
-        </h5>
+        <h5 class="modal-title" id="projectDetailTitle"><i class="bi bi-clipboard-data"></i> Detail Proyek</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="projectDetailContent"></div>
@@ -132,14 +100,17 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="main.js"></script>
-<script src="perusahaan.js"></script>
-<script src="proyek.js"></script>
-<script src="metode.js"></script>
-<script src="jsa.js"></script>
-<script src="mp.js"></script>
-<script src="pembelian.js"></script>
-<script src="laporan.js"></script>
-<script src="login.js"></script>
+
+<script src="config.js" defer></script>
+<script src="db.js" defer></script>
+<script src="main.js" defer></script>
+<script src="perusahaan.js" defer></script>
+<script src="proyek.js" defer></script>
+<script src="metode.js" defer></script>
+<script src="jsa.js" defer></script>
+<script src="mp.js" defer></script>
+<script src="pembelian.js" defer></script>
+<script src="laporan.js" defer></script>
+<script src="login.js" defer></script>
 </body>
 </html>
