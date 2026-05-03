@@ -5,12 +5,16 @@ const ReportPage = {
   _data: { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null },
 
   render() {
-    return `<div id="reportListView">
-      
+    return `
+    <div class="page-header no-print">
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-file-earmark-pdf"></i></span>Laporan</h2>
+        <button class="btn btn--primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak PDF</button>
+      </div>
+    <div id="reportListView">
       <div class="card no-print"><div class="card-body p-0">
         <div class="row g-2 p-3">
           <div class="col-4">
-            <select class="form-select form-select-sm" id="selectReportProject" onchange="ReportPage.onProjectChange()">
+            <select class="form-select" id="selectReportProject" onchange="ReportPage.onProjectChange()">
               <option value="">Semua Proyek</option>
             </select>
           </div>
@@ -25,7 +29,6 @@ const ReportPage = {
                 <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('cashflow')">Keuangan</button>
                 <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('manpower')">Man Power</button>
               </div>
-              <button class="btn btn--primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak PDF</button>
             </div>
           </div>
         </div>
@@ -72,13 +75,13 @@ const ReportPage = {
     let selectorHTML = '';
     if (reportType==='jsa') {
       let list=this._data.jsa; if(projectId) list=list.filter(j=>j.project_id===projectId);
-      selectorHTML=`<select class="form-select form-select-sm" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(j=>`<option value="${j.id}">${UtilityService.escapeHtml(j.document_number)}</option>`).join('')}</select>`;
+      selectorHTML=`<select class="form-select" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(j=>`<option value="${j.id}">${UtilityService.escapeHtml(j.document_number)}</option>`).join('')}</select>`;
     } else if (reportType==='wm') {
       let list=this._data.wm; if(projectId) list=list.filter(w=>w.project_id===projectId);
-      selectorHTML=`<select class="form-select form-select-sm" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(w=>`<option value="${w.id}">${UtilityService.escapeHtml(w.document_number)}</option>`).join('')}</select>`;
+      selectorHTML=`<select class="form-select" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(w=>`<option value="${w.id}">${UtilityService.escapeHtml(w.document_number)}</option>`).join('')}</select>`;
     } else if (reportType==='po') {
       let list=this._data.po; if(projectId) list=list.filter(p=>p.project_id===projectId);
-      selectorHTML=`<select class="form-select form-select-sm" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(p=>`<option value="${p.id}">${UtilityService.escapeHtml(p.material_name||p.id)} — ${UtilityService.formatCurrency(p.total_price)}</option>`).join('')}</select>`;
+      selectorHTML=`<select class="form-select" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(p=>`<option value="${p.id}">${UtilityService.escapeHtml(p.material_name||p.id)} — ${UtilityService.formatCurrency(p.total_price)}</option>`).join('')}</select>`;
     } else if (reportType==='manpower') {
       const c=document.getElementById('reportDocSelector'); if(c) c.innerHTML=''; return;
     } else {

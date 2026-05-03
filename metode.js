@@ -12,13 +12,8 @@ const WorkMethodPage = {
       </div>
       <div class="card"><div class="card-body p-0">
         <div class="row g-2 p-3">
-          <div class="col-8 col-sm-4">
-            <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control" id="inputSearchWorkMethod" placeholder="Cari..." oninput="WorkMethodPage.loadWorkMethodList()">
-            </div>
-          </div>
-          <div class="col-4 col-sm-3">
-            <select class="form-select form-select-sm" id="selectFilterWorkMethodProject" onchange="WorkMethodPage.loadWorkMethodList()">
+          <div class="col-sm-3">
+            <select class="form-select" id="selectFilterWorkMethodProject" onchange="WorkMethodPage.loadWorkMethodList()">
               <option value="">Semua Proyek</option>
             </select>
           </div>
@@ -217,10 +212,8 @@ const WorkMethodPage = {
   async loadWorkMethodList() {
     try {
       const [wms, projects] = await Promise.all([DataAccess.getAllWorkMethods(), DataAccess.getAllProjects()]);
-      const search = (document.getElementById('inputSearchWorkMethod')?.value || '').toLowerCase();
       const projId = document.getElementById('selectFilterWorkMethodProject')?.value || '';
       let list = [...wms];
-      if (search) list = list.filter(w => (w.document_number || '').toLowerCase().includes(search));
       if (projId) list = list.filter(w => w.project_id === projId);
       list.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 

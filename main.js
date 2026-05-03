@@ -294,6 +294,9 @@ const UIService = {
 const DashboardPage = {
   render() {
     return `
+    <div class="page-header no-print">
+      <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-speedometer2"></i></span>Dashboard</h2>
+    </div>
     <div id="${EL.DASHBOARD_ALERTS}"></div>
     <div class="stat-grid">
       ${this._statCard('blue',   'bi-building',      EL.STAT_COMPANY,      'Perusahaan',   ROUTES.PERUSAHAAN)}

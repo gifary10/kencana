@@ -2,6 +2,10 @@
 const ProjectPage = {
   render() {
     return `
+      <div class="page-header no-print">
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-clipboard-data"></i></span>Proyek</h2>
+        <button class="btn btn--primary" onclick="ProjectPage.showProjectForm()"><i class="bi bi-plus-lg"></i>Proyek Baru</button>
+      </div>
     <div id="projectFormCard" class="card" style="display:none;">
       <div class="card-header" id="formCardTitle"><i class="bi bi-plus-circle"></i> Tambah Proyek Baru</div>
       <div class="card-body">
@@ -27,21 +31,6 @@ const ProjectPage = {
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-body p-0">
-        <div class="row g-2 p-3">
-          <div class="col-9">
-            <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control" id="inputSearchProject" placeholder="Cari proyek..." oninput="ProjectPage.loadProjectTable()">
-            </div>
-          </div>
-          <div class="col-2">
-            <button class="btn btn--primary" onclick="ProjectPage.showProjectForm()"><i class="bi bi-plus-lg"></i></button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="card d-none d-md-block">
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -61,16 +50,8 @@ const ProjectPage = {
 
   async loadProjectTable() {
     try {
-      const searchQuery = (document.getElementById('inputSearchProject')?.value || '').toLowerCase();
-      
       let projects = await DataAccess.getAllProjects();
       
-      if (searchQuery) {
-        projects = projects.filter(p =>
-          (p.name||'').toLowerCase().includes(searchQuery) ||
-          (p.client||'').toLowerCase().includes(searchQuery)
-        );
-      }
       projects = [...projects].reverse();
 
       const tableBody = document.getElementById('projectTableBody');
@@ -87,7 +68,6 @@ const ProjectPage = {
               <td>${UtilityService.formatDate(p.start_date)}</td>
               <td>${UtilityService.formatDate(p.end_date)}</td>
               <td class="text-center">
-                <button class="btn btn--xs btn--outline-info me-1"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
                 <button class="btn btn--xs btn--outline-warning me-1" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
                 <button class="btn btn--xs btn--outline-danger"       data-action="delete" data-id="${p.id}"><i class="bi bi-trash"></i></button>
               </td>
@@ -99,7 +79,6 @@ const ProjectPage = {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
-            if (action === 'detail') await ProjectPage.showProjectDetail(id);
             if (action === 'edit')   await ProjectPage.editProject(id);
             if (action === 'delete') await ProjectPage.deleteProject(id);
           });
@@ -120,7 +99,6 @@ const ProjectPage = {
                 <i class="bi bi-calendar"></i> ${UtilityService.formatDate(p.start_date)} — ${UtilityService.formatDate(p.end_date)}
               </div>
               <div class="d-flex gap-2 mt-2">
-                <button class="btn btn--xs btn--outline-info"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
                 <button class="btn btn--xs btn--outline-warning" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
                 <button class="btn btn--xs btn--outline-danger ms-auto" data-action="delete" data-id="${p.id}"><i class="bi bi-trash"></i></button>
               </div>
@@ -131,7 +109,6 @@ const ProjectPage = {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
-            if (action === 'detail') await ProjectPage.showProjectDetail(id);
             if (action === 'edit')   await ProjectPage.editProject(id);
             if (action === 'delete') await ProjectPage.deleteProject(id);
           });
@@ -218,100 +195,5 @@ const ProjectPage = {
         } catch (err) { AppError.handle(err, 'Menghapus proyek'); }
       }
     );
-  },
-
-  // OPTIMIZED: Detail proyek menggunakan getProjectSummary + lazy load
-  async showProjectDetail(id) {
-    const p = await DataAccess.getProjectById(id);
-    if (!p) return;
-    
-    // Ambil summary dulu (cepat)
-    const summary = await DB.getProjectSummary(id);
-    
-    // Tampilkan modal dengan data summary
-    document.getElementById('projectDetailTitle').innerHTML = `<i class="bi bi-clipboard-data"></i> ${UtilityService.escapeHtml(p.name)}`;
-    document.getElementById('projectDetailContent').innerHTML = `
-      <div class="row g-3">
-        <div class="col-sm-6">
-          <div class="card"><div class="card-body">
-            <h6>Informasi Proyek</h6>
-            <table class="table table-sm mb-0">
-              <tr><td class="fw-semibold">Client</td><td>${UtilityService.escapeHtml(p.client||'-')}</td></tr>
-              <tr><td class="fw-semibold">Lokasi</td><td>${UtilityService.escapeHtml(p.location||'-')}</td></tr>
-              <tr><td class="fw-semibold">PIC</td><td>${UtilityService.escapeHtml(p.pic||'-')}</td></tr>
-              <tr><td class="fw-semibold">Nilai Kontrak</td><td><strong>${UtilityService.formatCurrency(p.contract_value)}</strong></td></tr>
-              <tr><td class="fw-semibold">Tgl Mulai</td><td>${UtilityService.formatDate(p.start_date)}</td></tr>
-              <tr><td class="fw-semibold">Tgl Selesai</td><td>${UtilityService.formatDate(p.end_date)}</td></tr>
-            </table>
-          </div></div>
-        </div>
-        <div class="col-sm-6">
-          <div class="card"><div class="card-body">
-            <h6>Ringkasan</h6>
-            <table class="table table-sm mb-0">
-              <tr><td class="fw-semibold">JSA</td><td><span id="detailJSACount">${summary.jsa_count}</span> dokumen</td></tr>
-              <tr><td class="fw-semibold">Metode Kerja</td><td><span id="detailWMCount">${summary.wm_count}</span> dokumen</td></tr>
-              <tr><td class="fw-semibold">Man Power</td><td><span id="detailMPCount">${summary.mp_count}</span> personel</td></tr>
-              <tr><td class="fw-semibold">PO</td><td><span id="detailPOCount">${summary.po_count}</span> item</td></tr>
-            </table>
-          </div></div>
-        </div>
-      </div>`;
-    
-    new bootstrap.Modal(document.getElementById('projectDetailModal')).show();
-    
-    // Lazy load detail data di background (tidak blocking UI)
-    this._lazyLoadProjectDetail(id);
-  },
-  
-  async _lazyLoadProjectDetail(id) {
-    try {
-      const p = await DataAccess.getProjectById(id);
-      if (!p) return;
-
-      const [jsa, wm, mp, po] = await Promise.all([
-        DataAccess.getJSAByProject(id),
-        DataAccess.getWorkMethodsByProject(id),
-        DataAccess.getManpowerByProject(id),
-        DataAccess.getPOByProject(id)
-      ]);
-      
-      const totalPO = po.reduce((s,o) => s + (parseFloat(o.total_price)||0), 0);
-      
-      // Update UI dengan data detail (jika modal masih terbuka)
-      const detailContent = document.getElementById('projectDetailContent');
-      if (detailContent && document.getElementById('projectDetailModal').classList.contains('show')) {
-        detailContent.innerHTML = `
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <div class="card"><div class="card-body">
-                <h6>Informasi Proyek</h6>
-                <table class="table table-sm mb-0">
-                  <tr><td class="fw-semibold">Client</td><td>${UtilityService.escapeHtml(p.client||'-')}</td></tr>
-                  <tr><td class="fw-semibold">Lokasi</td><td>${UtilityService.escapeHtml(p.location||'-')}</td></tr>
-                  <tr><td class="fw-semibold">PIC</td><td>${UtilityService.escapeHtml(p.pic||'-')}</td></tr>
-                  <tr><td class="fw-semibold">Nilai Kontrak</td><td><strong>${UtilityService.formatCurrency(p.contract_value)}</strong></td></tr>
-                  <tr><td class="fw-semibold">Tgl Mulai</td><td>${UtilityService.formatDate(p.start_date)}</td></tr>
-                  <tr><td class="fw-semibold">Tgl Selesai</td><td>${UtilityService.formatDate(p.end_date)}</td></tr>
-                </table>
-              </div></div>
-            </div>
-            <div class="col-sm-6">
-              <div class="card"><div class="card-body">
-                <h6>Ringkasan</h6>
-                <table class="table table-sm mb-0">
-                  <tr><td class="fw-semibold">JSA</td><td>${jsa.length} dokumen</td></tr>
-                  <tr><td class="fw-semibold">Metode Kerja</td><td>${wm.length} dokumen</td></tr>
-                  <tr><td class="fw-semibold">Man Power</td><td>${mp.length} personel</td></tr>
-                  <tr><td class="fw-semibold">PO</td><td>${po.length} item</td></tr>
-                  <tr><td class="fw-semibold">Total Pembelian</td><td><strong class="text-success">${UtilityService.formatCurrency(totalPO)}</strong></td></tr>
-                </table>
-              </div></div>
-            </div>
-          </div>`;
-      }
-    } catch (err) {
-      console.error('Lazy load detail failed:', err);
-    }
   }
 };

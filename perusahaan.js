@@ -1,7 +1,11 @@
 // perusahaan.js
 const CompanyPage = {
   render() {
-    return `<div class="row g-3"><div class="col-lg-12"><div class="card">
+    return `
+      <div class="page-header no-print">
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-building"></i></span>Perusahaan</h2>
+      </div>
+    <div class="row g-3"><div class="col-lg-12"><div class="card">
       <div class="card-header"><i class="bi bi-pencil-square"></i> Informasi Perusahaan</div>
       <div class="card-body">
         <form id="companyForm" onsubmit="return false;">

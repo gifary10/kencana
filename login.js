@@ -103,7 +103,7 @@ const LoginPage = {
         <div class="login-error" id="loginError" style="display:none;">
           <i class="bi bi-exclamation-circle-fill"></i><span id="loginErrorMsg">Username atau password salah.</span>
         </div>
-        <div class="login-footer">Masukkan username dan password yang terdaftar<br>Kencana Project v4.0</div>
+        <div class="login-footer">Masukkan username dan password yang terdaftar<br>PT. Kencana Prakarsa Teknik</div>
       </div>
     </div>`;
   },

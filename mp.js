@@ -32,6 +32,9 @@ const ManpowerPage = {
   render() {
     return `
     <div id="manpowerView">
+      <div class="page-header no-print">
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-people"></i></span>Man Power</h2>
+      </div>
       <div class="tab-nav no-print" id="manpowerTabNav">
         <button class="tab-nav__btn tab-nav__btn--active" onclick="ManpowerPage.switchTab('assign')">
           <i class="bi bi-diagram-3"></i> Penugasan per Proyek
@@ -46,7 +49,7 @@ const ManpowerPage = {
         <div class="card no-print">
           <div class="card-body p-3">
             <label class="form-label mb-1 fw-semibold">Pilih Proyek</label>
-            <select class="form-select form-select-sm" id="selectManpowerProject"
+            <select class="form-select" id="selectManpowerProject"
               onchange="ManpowerPage.onProjectChange()" style="max-width:420px;">
               <option value="">-- Pilih Proyek --</option>
             </select>

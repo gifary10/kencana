@@ -4,24 +4,22 @@ const ProcurementPage = {
   _cachedProjects: [],
 
   render() {
-    return `<div id="procurementListView">
+    return `
+      <div class="page-header no-print">
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-cart"></i></span>Cost Project</h2>
+        <button class="btn btn--primary" onclick="ProcurementPage.showPOForm()"><i class="bi bi-plus-lg"></i> Item Baru</button>
+      </div>
+    <div id="procurementListView">
       <div class="card"><div class="card-body p-0">
         <div class="row g-2 p-3">
-          <div class="col-4">
-            <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control" id="inputSearchPO" placeholder="Cari item..." oninput="ProcurementPage.loadPOList()">
-            </div>
-          </div>
           <div class="col-6">
-            <select class="form-select form-select-sm" id="selectFilterPOProject" onchange="ProcurementPage.loadPOList()">
+            <select class="form-select" id="selectFilterPOProject" onchange="ProcurementPage.loadPOList()">
               <option value="">Semua Proyek</option>
             </select>
           </div>
-          <div class="col-2">
-          <button class="btn btn--primary" onclick="ProcurementPage.showPOForm()"><i class="bi bi-plus-lg"></i> Item Baru</button>
         </div>
-          </div>
-      </div></div>
+      </div>
+    </div>
       <div class="card d-none d-md-block"><div class="card-body p-0"><div class="table-responsive">
         <table class="table table--hover mb-0">
           <thead><tr><th>No</th><th>Proyek</th><th>Nama Material</th><th>Spesifikasi</th><th>Qty</th><th>Unit</th><th>Harga Satuan</th><th>Total</th><th>Aksi</th></tr></thead>
@@ -199,13 +197,8 @@ const ProcurementPage = {
   async loadPOList() {
     try {
       const [poList, projects] = await Promise.all([DataAccess.getAllPO(), DataAccess.getAllProjects()]);
-      const search = (document.getElementById('inputSearchPO')?.value || '').toLowerCase();
       const projId = document.getElementById('selectFilterPOProject')?.value || '';
       let list = [...poList];
-      if (search) list = list.filter(po =>
-        (po.material_name || '').toLowerCase().includes(search) ||
-        (po.specification || '').toLowerCase().includes(search)
-      );
       if (projId) list = list.filter(po => po.project_id === projId);
       list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 

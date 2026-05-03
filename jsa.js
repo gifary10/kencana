@@ -6,20 +6,19 @@ const JSAPage = {
   _cachedWorkMethods: [],
 
   render() {
-    return `<div id="jsaListView">
+    return `
+      <div class="page-header no-print">
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-journal-check"></i></span>Job Safety Analysis</h2>
+        <button class="btn btn--primary" onclick="JSAPage.showJSAForm()"><i class="bi bi-plus-lg"></i> JSA Baru</button>
+      </div>
+    <div id="jsaListView">
       <div class="card"><div class="card-body p-0">
         <div class="row g-2 p-3">
-          <div class="col-8 col-sm-4">
-            <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control" id="inputSearchJSA" placeholder="Cari..." oninput="JSAPage.loadJSAList()">
-            </div>
-          </div>
-          <div class="col-4 col-sm-3">
-            <select class="form-select form-select-sm" id="selectFilterJSAProject" onchange="JSAPage.loadJSAList()">
+          <div class="col-sm-3">
+            <select class="form-select" id="selectFilterJSAProject" onchange="JSAPage.loadJSAList()">
               <option value="">Semua Proyek</option>
             </select>
           </div>
-          <button class="btn btn--primary" onclick="JSAPage.showJSAForm()"><i class="bi bi-plus-lg"></i> JSA Baru</button>
         </div>
       </div></div>
       <div class="card d-none d-md-block"><div class="card-body p-0"><div class="table-responsive">
@@ -146,7 +145,7 @@ const JSAPage = {
         .map(w=>`<option value="${w.id}">${UtilityService.escapeHtml(w.document_number)} (${(w.work_steps||[]).length} langkah)</option>`).join('');
       return `<div class="section-title">Identifikasi Bahaya</div>
         <div class="d-flex gap-2 mb-3 flex-wrap">
-          ${wmOpts?`<div class="d-flex align-items-center gap-2"><label class="form-label mb-0">Import dari Metode Kerja:</label><select class="form-select form-select-sm w-auto" id="selectImportWorkMethod" onchange="JSAPage.importFromWorkMethod(this.value)"><option value="">-- Pilih --</option>${wmOpts}</select></div>`:''}
+          ${wmOpts?`<div class="d-flex align-items-center gap-2"><label class="form-label mb-0">Import dari Metode Kerja:</label><select class="form-select w-auto" id="selectImportWorkMethod" onchange="JSAPage.importFromWorkMethod(this.value)"><option value="">-- Pilih --</option>${wmOpts}</select></div>`:''}
           <button class="btn btn--primary ms-auto" onclick="JSAPage.addHazardRow()"><i class="bi bi-plus-lg"></i> Tambah Manual</button>
         </div>
         <div class="table-responsive"><table class="hiradc-table">
@@ -276,10 +275,8 @@ const JSAPage = {
   async loadJSAList() {
     try {
       const [jsaList, projects] = await Promise.all([DataAccess.getAllJSA(), DataAccess.getAllProjects()]);
-      const search = (document.getElementById('inputSearchJSA')?.value || '').toLowerCase();
       const projId = document.getElementById('selectFilterJSAProject')?.value || '';
       let list = [...jsaList];
-      if (search) list = list.filter(j => (j.document_number || '').toLowerCase().includes(search));
       if (projId) list = list.filter(j => j.project_id === projId);
       list.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
