@@ -48,7 +48,7 @@ const AppError = {
     errDiv.appendChild(msgSpan);
 
     const reloadBtn = document.createElement('button');
-    reloadBtn.className = 'btn btn--sm btn--outline-primary mt-2 d-block';
+    reloadBtn.className = 'btn btn--outline-primary mt-2 d-block';
     reloadBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Coba Lagi';
     reloadBtn.onclick = () => UIService.navigate(route || ROUTES.DASHBOARD);
     errDiv.appendChild(reloadBtn);

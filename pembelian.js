@@ -7,18 +7,20 @@ const ProcurementPage = {
     return `<div id="procurementListView">
       <div class="card"><div class="card-body p-0">
         <div class="row g-2 p-3">
-          <div class="col-8 col-sm-4">
+          <div class="col-4">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchPO" placeholder="Cari item..." oninput="ProcurementPage.loadPOList()">
+              <input type="text" class="form-control" id="inputSearchPO" placeholder="Cari item..." oninput="ProcurementPage.loadPOList()">
             </div>
           </div>
-          <div class="col-4 col-sm-3">
+          <div class="col-6">
             <select class="form-select form-select-sm" id="selectFilterPOProject" onchange="ProcurementPage.loadPOList()">
               <option value="">Semua Proyek</option>
             </select>
           </div>
-          <button class="btn btn--primary btn--lg" onclick="ProcurementPage.showPOForm()"><i class="bi bi-plus-lg"></i> Item Baru</button>
+          <div class="col-2">
+          <button class="btn btn--primary" onclick="ProcurementPage.showPOForm()"><i class="bi bi-plus-lg"></i> Item Baru</button>
         </div>
+          </div>
       </div></div>
       <div class="card d-none d-md-block"><div class="card-body p-0"><div class="table-responsive">
         <table class="table table--hover mb-0">
@@ -32,7 +34,7 @@ const ProcurementPage = {
     <div id="procurementFormView" style="display:none;">
       <div class="page-header no-print">
         <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-cart"></i></span><span id="poPageTitle">Item Pembelian Baru</span></h2>
-        <button class="btn btn--outline-secondary btn--sm" onclick="ProcurementPage.showPOList()"><i class="bi bi-x-lg"></i> Batal</button>
+        <button class="btn btn--outline-secondary" onclick="ProcurementPage.showPOList()"><i class="bi bi-x-lg"></i> Batal</button>
       </div>
       <div class="wizard">
         <div class="wizard__header"><div class="wizard__title"><i class="bi bi-cart"></i> Form Item Pembelian</div></div>
@@ -92,7 +94,7 @@ const ProcurementPage = {
       <div class="section-title">Daftar Item Pembelian</div>
       <div class="d-flex justify-content-between mb-3">
         <p class="text-muted mb-0">Tambahkan item pembelian</p>
-        <button class="btn btn--sm btn--primary" onclick="ProcurementPage.addItemRow()"><i class="bi bi-plus-lg"></i> Tambah Item</button>
+        <button class="btn btn--primary" onclick="ProcurementPage.addItemRow()"><i class="bi bi-plus-lg"></i> Tambah Item</button>
       </div>
       <div class="table-responsive">
         <table class="hiradc-table" id="poItemsTable">
@@ -232,13 +234,16 @@ const ProcurementPage = {
               </td>
             </tr>`;
           }).join('');
-          tableBody.addEventListener('click', async e => {
+          // Event delegation — ganti elemen untuk hapus listener lama
+          const freshTable = tableBody.cloneNode(true);
+          tableBody.parentNode.replaceChild(freshTable, tableBody);
+          freshTable.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
             if (action === 'edit')   await ProcurementPage.editPO(id);
             if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
-          }, { once: true });
+          });
         }
         if (cardList) {
           cardList.innerHTML = list.map(po => {
@@ -254,13 +259,16 @@ const ProcurementPage = {
               </div>
             </div></div>`;
           }).join('');
-          cardList.addEventListener('click', async e => {
+          // Event delegation — ganti elemen untuk hapus listener lama
+          const freshCard = cardList.cloneNode(true);
+          cardList.parentNode.replaceChild(freshCard, cardList);
+          freshCard.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
             if (action === 'edit')   await ProcurementPage.editPO(id);
             if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
-          }, { once: true });
+          });
         }
       }
     } catch (err) {

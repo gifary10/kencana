@@ -47,8 +47,8 @@ const EL = Object.freeze({
   APP_MAIN_CONTENT: 'appMainContent',
   SIDEBAR_OVERLAY:  'sidebarOverlay',
   NAVBAR_SPINNER:   'navbarLoadingSpinner',
-  SIDEBAR_USERNAME: 'sidebarUserName',
-  SIDEBAR_USERROLE: 'sidebarUserRole',
+  SIDEBAR_USERNAME: 'userInfoBarName',
+  SIDEBAR_USERROLE: 'userInfoBarRole',
   NAV_SECTION_ADMIN:'navSectionAdmin',
   NAV_ITEM_AKUN:    'navItemAkun',
 

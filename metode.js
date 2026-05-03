@@ -8,13 +8,13 @@ const WorkMethodPage = {
     return `<div id="workMethodListView">
       <div class="page-header no-print">
         <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-diagram-3"></i></span>Metode Kerja</h2>
-        <button class="btn btn--primary btn--lg" onclick="WorkMethodPage.showWorkMethodForm()"><i class="bi bi-plus-lg"></i> Metode Kerja Baru</button>
+        <button class="btn btn--primary" onclick="WorkMethodPage.showWorkMethodForm()"><i class="bi bi-plus-lg"></i> Metode Kerja Baru</button>
       </div>
       <div class="card"><div class="card-body p-0">
         <div class="row g-2 p-3">
           <div class="col-8 col-sm-4">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchWorkMethod" placeholder="Cari..." oninput="WorkMethodPage.loadWorkMethodList()">
+              <input type="text" class="form-control" id="inputSearchWorkMethod" placeholder="Cari..." oninput="WorkMethodPage.loadWorkMethodList()">
             </div>
           </div>
           <div class="col-4 col-sm-3">
@@ -37,13 +37,13 @@ const WorkMethodPage = {
       <div class="page-header no-print">
         <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-diagram-3"></i></span><span id="workMethodPageTitle">Metode Kerja Baru</span></h2>
         <div class="d-flex gap-2">
-          <button class="btn btn--outline-secondary btn--sm" onclick="WorkMethodPage.saveAsDraft()"><i class="bi bi-cloud-check"></i> Draft</button>
-          <button class="btn btn--outline-danger btn--sm" onclick="WorkMethodPage.showWorkMethodList()"><i class="bi bi-x-lg"></i> Batal</button>
+          <button class="btn btn--outline-secondary" onclick="WorkMethodPage.saveAsDraft()"><i class="bi bi-cloud-check"></i> Draft</button>
+          <button class="btn btn--outline-danger" onclick="WorkMethodPage.showWorkMethodList()"><i class="bi bi-x-lg"></i> Batal</button>
         </div>
       </div>
       <div class="wizard">
         <div class="wizard__header no-print">
-          <div class="wizard__title"><i class="bi bi-diagram-3"></i> Work Method Statement</div>
+          <div class="wizard__title"><i class="bi bi-diagram-3"></i> Metode Kerja</div>
           <div class="step-pills" id="workMethodStepPills"></div>
         </div>
         <div class="wizard__body"><div id="workMethodStepContent" class="step-content"></div></div>
@@ -131,16 +131,17 @@ const WorkMethodPage = {
   buildStepHTML(step) {
     const projOpts = this._cachedProjects.map(p=>`<option value="${p.id}">${UtilityService.escapeHtml(p.name)}</option>`).join('');
     if(step===1) return `<div class="section-title">Informasi Umum</div><div class="row g-3">
+      <div class="col-sm-8"><label class="form-label">Proyek <span class="text-danger">*</span></label><select class="form-select" id="selectWMProject"><option value="">-- Pilih --</option>${projOpts}</select></div>
+      <div class="col-sm-4"><label class="form-label">Tanggal</label><input type="date" class="form-control" id="inputWMDate"></div>
       <div class="col-sm-6"><label class="form-label">No. Dokumen</label><input type="text" class="form-control input-readonly-bg" id="inputWMDocNumber" readonly></div>
-      <div class="col-sm-3"><label class="form-label">Revisi</label><input type="text" class="form-control" id="inputWMRevision" value="0"></div>
-      <div class="col-sm-3"><label class="form-label">Tanggal</label><input type="date" class="form-control" id="inputWMDate"></div>
-      <div class="col-sm-6"><label class="form-label">Proyek <span class="text-danger">*</span></label><select class="form-select" id="selectWMProject"><option value="">-- Pilih --</option>${projOpts}</select></div>
+      <div class="col-sm-6"><label class="form-label">Revisi</label><input type="text" class="form-control" id="inputWMRevision" value="0"></div>
+      
     </div>`;
 
     if(step===2) return `<div class="section-title">Langkah Kerja</div>
       <div class="d-flex justify-content-between mb-3">
         <p class="text-muted mb-0">Uraian langkah kerja</p>
-        <button class="btn btn--sm btn--primary" onclick="WorkMethodPage.addWorkStep()"><i class="bi bi-plus-lg"></i> Tambah</button>
+        <button class="btn btn--primary" onclick="WorkMethodPage.addWorkStep()"><i class="bi bi-plus-lg"></i> Tambah</button>
       </div>
       <div class="table-responsive"><table class="hiradc-table">
         <thead><tr><th>Nomor</th><th>Tahapan Kerja</th><th>Alat Kerja</th><th>Proses / Kegiatan</th><th></th></tr></thead>
@@ -262,7 +263,7 @@ const WorkMethodPage = {
             const { action, id } = btn.dataset;
             if (action === 'edit')   await WorkMethodPage.editWorkMethod(id);
             if (action === 'delete') await WorkMethodPage.deleteWorkMethod(id);
-          }, { once: true });
+          });
         });
       }
     } catch (err) {

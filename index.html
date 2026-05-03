@@ -11,77 +11,70 @@
 </head>
 <body>
 
-<!-- Top Navbar -->
-<nav class="app-navbar no-print" id="appNavbar">
-  <div class="app-navbar__left">
-    <div class="app-navbar__brand">
-      <div class="app-navbar__brand-logo" id="navbarBrandLogo">
-        <img src="logo.png" alt="KPT Logo">
-      </div>
-      <span class="app-navbar__brand-text">KPT Project, safety & finance management system</span>
-    </div>
-  </div>
-  <div class="app-navbar__right">
-    <span id="navbarLoadingSpinner" style="display:none; margin-right: 12px;">
-      <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
-    </span>
-    <button class="app-navbar__toggler" id="sidebarToggler" onclick="AppNavbar.toggleSidebar()" title="Toggle Menu">
-      <i class="bi bi-list"></i>
-    </button>
-  </div>
-</nav>
-
 <!-- Sidebar Navigation -->
 <nav class="app-sidebar no-print" id="appSidebar">
+  <div class="app-sidebar__header">
+    <div class="app-sidebar__brand">
+      <img src="logo1.png" alt="KPT Logo" class="app-sidebar__logo">
+    </div>
+  </div>
+  
   <div class="app-sidebar__nav">
-    <div class="nav-section-label">Utama</div>
-    <a href="#dashboard" class="nav-item" data-route="dashboard" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#dashboard" class="nav-item" data-route="dashboard">
       <span class="nav-item__icon"><i class="bi bi-speedometer2"></i></span> Dashboard
     </a>
     <div class="nav-section-label">Manajemen</div>
-    <a href="#perusahaan" class="nav-item" data-route="perusahaan" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#perusahaan" class="nav-item" data-route="perusahaan">
       <span class="nav-item__icon"><i class="bi bi-building"></i></span> Perusahaan
     </a>
-    <a href="#proyek" class="nav-item" data-route="proyek" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#proyek" class="nav-item" data-route="proyek">
       <span class="nav-item__icon"><i class="bi bi-clipboard-data"></i></span> Proyek
     </a>
-    <a href="#metode" class="nav-item" data-route="metode" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#metode" class="nav-item" data-route="metode">
       <span class="nav-item__icon"><i class="bi bi-diagram-3"></i></span> Metode Kerja
     </a>
-    <a href="#jsa" class="nav-item" data-route="jsa" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#jsa" class="nav-item" data-route="jsa">
       <span class="nav-item__icon"><i class="bi bi-journal-check"></i></span> JSA
     </a>
-    <a href="#manpower" class="nav-item" data-route="manpower" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#manpower" class="nav-item" data-route="manpower">
       <span class="nav-item__icon"><i class="bi bi-people"></i></span> Man Power
     </a>
     <div class="nav-section-label">Logistik & Laporan</div>
-    <a href="#pembelian" class="nav-item" data-route="pembelian" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#pembelian" class="nav-item" data-route="pembelian">
       <span class="nav-item__icon"><i class="bi bi-cart"></i></span> Cost Project
     </a>
-    <a href="#laporan" class="nav-item" data-route="laporan" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#laporan" class="nav-item" data-route="laporan">
       <span class="nav-item__icon"><i class="bi bi-file-earmark-pdf"></i></span> Laporan
     </a>
     <div class="nav-section-label" id="navSectionAdmin" style="display:none;">Pengaturan</div>
-    <a href="#akun" class="nav-item" data-route="akun" id="navItemAkun" style="display:none;" onclick="AppNavbar.closeSidebarOnMobile()">
+    <a href="#akun" class="nav-item" data-route="akun" id="navItemAkun" style="display:none;">
       <span class="nav-item__icon"><i class="bi bi-people-fill"></i></span> Manajemen Akun
     </a>
-  </div>
-
-  <div class="sidebar-user-info" id="sidebarUserInfo">
-    <div class="sidebar-user-info__header">
-      <div class="sidebar-user-details">
-        <div class="sidebar-user-name" id="sidebarUserName">User</div>
-        <div class="sidebar-user-role" id="sidebarUserRole">Role</div>
-      </div>
-    </div>
-    <button class="sidebar-user-logout" onclick="AppAuth.logout()">
-      <i class="bi bi-box-arrow-right"></i> Keluar
-    </button>
   </div>
 </nav>
 
 <!-- Overlay for mobile sidebar -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="AppNavbar.closeSidebar()"></div>
+
+<!-- Loading Spinner -->
+<div id="navbarLoadingSpinner" style="display:none; position:fixed; top:16px; right:16px; z-index:9999;">
+  <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+</div>
+
+<!-- User Info Bar -->
+<div class="user-info-bar no-print" id="userInfoBar">
+  <div class="user-info-bar__content">
+    <div class="user-info-bar__details">
+      <div>
+        <div class="user-info-bar__name" id="userInfoBarName">User</div>
+        <div class="user-info-bar__role" id="userInfoBarRole">Role</div>
+      </div>
+    </div>
+    <button class="user-info-bar__logout" onclick="AppAuth.logout()" title="Keluar">
+      <i class="bi bi-box-arrow-right"></i>
+    </button>
+  </div>
+</div>
 
 <!-- Main Content Area -->
 <main class="app-main-content" id="appMainContent"></main>

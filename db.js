@@ -1,17 +1,30 @@
+// db.js — (OPTIMIZED v3 - Lazy Loading & Smart Cache)
+
 /* ==================== CONFIG ==================== */
-// Isi URL setelah deploy Apps Script sebagai Web App
 const GS_URL = window.GS_API_URL || '';
 
-/* ==================== INTERNAL CACHE ====================
-   Cache in-memory agar UI tidak lambat saat render ulang.
-   [OPTIMASI] Tambahan TTL (Time-To-Live) 5 menit:
-   - Data yang di-cache lebih dari 5 menit dianggap stale.
-   - Cegah data kadaluarsa tanpa diketahui user.
-*/
+/* ==================== ENHANCED CACHE ==================== */
 const _cache           = {};
-const _pending         = {};            // mencegah double-request bersamaan
-const _cacheTimestamps = {};            // untuk TTL expiry
-const CACHE_TTL_MS     = 5 * 60 * 1000; // 5 menit
+const _pending         = {};
+const _cacheTimestamps = {};
+const _cacheMeta       = {}; // Metadata: { total, lastFetched }
+
+// TTL bervariasi berdasarkan jenis data
+const CACHE_TTL = {
+  company:      10 * 60 * 1000, // 10 menit - jarang berubah
+  projects:      5 * 60 * 1000, // 5 menit
+  personnel:     5 * 60 * 1000, // 5 menit
+  accounts:      5 * 60 * 1000, // 5 menit
+  jsa:           2 * 60 * 1000, // 2 menit
+  work_methods:  2 * 60 * 1000, // 2 menit
+  manpower:      2 * 60 * 1000, // 2 menit
+  procurement:   2 * 60 * 1000, // 2 menit
+  default:       1 * 60 * 1000  // 1 menit
+};
+
+function _getTTL(sheet) {
+  return CACHE_TTL[sheet] || CACHE_TTL.default;
+}
 
 function _cacheKey(sheet, params) {
   if (params && Object.keys(params).length > 0) {
@@ -20,17 +33,22 @@ function _cacheKey(sheet, params) {
   return sheet;
 }
 
-// [OPTIMASI] Cek TTL sebelum return cache
-function _isCacheValid(key) {
+function _isCacheValid(key, sheet) {
   if (!_cache[key]) return false;
   const ts = _cacheTimestamps[key];
   if (!ts) return false;
-  return (Date.now() - ts) < CACHE_TTL_MS;
+  const ttl = _getTTL(sheet);
+  return (Date.now() - ts) < ttl;
 }
 
-function _setCache(key, value) {
+function _setCache(key, value, meta = {}) {
   _cache[key]           = value;
   _cacheTimestamps[key] = Date.now();
+  _cacheMeta[key]       = { ..._cacheMeta[key], ...meta };
+}
+
+function _getCacheMeta(key) {
+  return _cacheMeta[key] || {};
 }
 
 function _invalidate(sheet) {
@@ -38,19 +56,27 @@ function _invalidate(sheet) {
     if (key === sheet || key.startsWith(sheet + '::')) {
       delete _cache[key];
       delete _cacheTimestamps[key];
+      delete _cacheMeta[key];
     }
   });
 }
 
 function _invalidateRelated(sheet) {
   _invalidate(sheet);
+  // Hanya invalidate yang benar-benar terkait
   if (sheet === 'projects') {
-    ['jsa', 'work_methods', 'manpower', 'procurement'].forEach(_invalidate);
+    // Hanya invalidate count, bukan semua data
+    ['jsa', 'work_methods', 'manpower', 'procurement'].forEach(s => {
+      _invalidate(s + '::count');
+      _invalidate(s + '::summary');
+    });
+  }
+  if (sheet === 'personnel') {
+    _invalidate('manpower');
   }
 }
 
-/* ==================== HTTP HELPERS (with Retry) ==================== */
-
+/* ==================== HTTP HELPERS ==================== */
 async function _fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
   let lastError;
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -65,7 +91,7 @@ async function _fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
     }
     if (attempt === retries) throw lastError;
     const waitTime = delay * Math.pow(2, attempt - 1);
-    console.warn(`[DB] Retry ${attempt}/${retries} after ${waitTime}ms. Error:`, lastError.message);
+    console.warn(`[DB] Retry ${attempt}/${retries} after ${waitTime}ms`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
   }
 }
@@ -91,13 +117,13 @@ async function _post(body) {
   return json;
 }
 
-/* ==================== NAVBAR LOADING SPINNER ==================== */
+/* ==================== LOADING SPINNER ==================== */
 let _loadingCount = 0;
 
 function _showLoading() {
   _loadingCount++;
   const spinner = document.getElementById('navbarLoadingSpinner');
-  if (spinner) spinner.style.display = 'inline-block';
+  if (spinner) spinner.style.display = 'block';
 }
 
 function _hideLoading() {
@@ -108,11 +134,7 @@ function _hideLoading() {
   }
 }
 
-/* ==================== DEBOUNCE UTILITY ====================
-   [OPTIMASI] Satu fungsi debounce terpusat, dipakai oleh
-   semua search input di seluruh halaman.
-   Mencegah API call terpicu setiap kali user mengetik 1 huruf.
-*/
+/* ==================== DEBOUNCE ==================== */
 function debounce(fn, delay = 300) {
   let timer;
   return function (...args) {
@@ -121,18 +143,10 @@ function debounce(fn, delay = 300) {
   };
 }
 
-// Registry debounced handlers — dibuat lazy saat pertama kali dipanggil
 const _debouncedHandlers = {};
 
-/**
- * Panggil fn dengan debounce. key harus unik per search input.
- * Contoh: DB.debounceCall('searchProject', () => ProjectPage.loadProjectTable());
- */
 function _debounceCall(key, fn, delay = 300) {
   if (!_debouncedHandlers[key]) {
-    _debouncedHandlers[key] = debounce(fn, delay);
-  } else {
-    // Update fn terbaru (penting karena fn bisa closure berbeda)
     _debouncedHandlers[key] = debounce(fn, delay);
   }
   _debouncedHandlers[key]();
@@ -141,18 +155,16 @@ function _debounceCall(key, fn, delay = 300) {
 /* ==================== CORE DB API ==================== */
 const DB = {
 
-  // Expose debounce helper untuk dipakai modul lain
   debounceCall: _debounceCall,
   debounce,
 
-  // --- READ ALL (with cache + TTL) ---
+  // =============================================
+  // OPTIMIZED: getAll dengan field selection
+  // =============================================
   async getAll(sheet, opts = {}) {
     const key = _cacheKey(sheet, opts);
 
-    // [OPTIMASI] Cek TTL — jangan pakai cache yang sudah stale
-    if (_isCacheValid(key)) return _cache[key];
-
-    // Prevent parallel duplicate requests
+    if (_isCacheValid(key, sheet)) return _cache[key];
     if (_pending[key]) return _pending[key];
 
     _showLoading();
@@ -164,11 +176,12 @@ const DB = {
     if (opts.searchValue) params.searchValue = opts.searchValue;
     if (opts.limit)       params.limit       = opts.limit;
     if (opts.offset)      params.offset      = opts.offset;
+    if (opts.fields)      params.fields      = opts.fields.join(','); // New: field selection
 
     _pending[key] = _get(params)
       .then(r => {
         const result = { rows: r.rows || [], total: r.total || 0 };
-        _setCache(key, result);   // [OPTIMASI] set dengan timestamp
+        _setCache(key, result, { total: r.total });
         delete _pending[key];
         _hideLoading();
         return result;
@@ -182,10 +195,33 @@ const DB = {
     return _pending[key];
   },
 
-  // --- GET COUNT ONLY ---
+  // =============================================
+  // OPTIMIZED: getById dengan cache
+  // =============================================
+  async getById(sheet, id) {
+    if (!id) return null;
+    const key = sheet + '::id::' + id;
+    
+    if (_isCacheValid(key, sheet)) return _cache[key];
+    
+    _showLoading();
+    try {
+      const r = await _get({ action: 'getById', sheet, id });
+      if (r.row) {
+        _setCache(key, r.row);
+      }
+      return r.row;
+    } finally {
+      _hideLoading();
+    }
+  },
+
+  // =============================================
+  // OPTIMIZED: getCount dengan cache
+  // =============================================
   async getCount(sheet) {
-    const key = _cacheKey(sheet, { action: 'count' });
-    if (_isCacheValid(key)) return _cache[key];
+    const key = sheet + '::count';
+    if (_isCacheValid(key, sheet)) return _cache[key];
 
     _showLoading();
     try {
@@ -197,10 +233,45 @@ const DB = {
     }
   },
 
-  // --- GET STATS (untuk dashboard) ---
+  // =============================================
+  // NEW: getCounts - Multiple counts in 1 request
+  // =============================================
+  async getCounts(sheets) {
+    const key = 'counts::' + sheets.join(',');
+    if (_isCacheValid(key, 'default')) return _cache[key];
+
+    _showLoading();
+    try {
+      const r = await _get({ action: 'getCounts', sheets: sheets.join(',') });
+      _setCache(key, r);
+      return r;
+    } finally {
+      _hideLoading();
+    }
+  },
+
+  // =============================================
+  // NEW: getProjectSummary - Summary tanpa getAll
+  // =============================================
+  async getProjectSummary(projectId) {
+    if (!projectId) return { jsa_count: 0, wm_count: 0, po_count: 0, mp_count: 0 };
+    
+    const key = 'summary::' + projectId;
+    if (_isCacheValid(key, 'default')) return _cache[key];
+
+    _showLoading();
+    try {
+      const r = await _get({ action: 'getSummary', projectId });
+      _setCache(key, r);
+      return r;
+    } finally {
+      _hideLoading();
+    }
+  },
+
   async getStats() {
     const key = 'dashboard_stats';
-    if (_isCacheValid(key)) return _cache[key];
+    if (_isCacheValid(key, 'default')) return _cache[key];
 
     _showLoading();
     try {
@@ -212,10 +283,9 @@ const DB = {
     }
   },
 
-  // --- GET RECENT ---
   async getRecent(sheet, limit = 5) {
-    const key = _cacheKey(sheet, { action: 'recent', limit });
-    if (_isCacheValid(key)) return _cache[key];
+    const key = sheet + '::recent::' + limit;
+    if (_isCacheValid(key, sheet)) return _cache[key];
 
     _showLoading();
     try {
@@ -228,11 +298,11 @@ const DB = {
     }
   },
 
-  // --- UPSERT with Optimistic Update ---
   async upsert(sheet, data) {
-    const key      = _cacheKey(sheet);
+    const key = _cacheKey(sheet);
     const oldCache = _cache[key] ? { ..._cache[key] } : null;
 
+    // Optimistic update
     if (_cache[key] && _cache[key].rows) {
       const existingIdx = _cache[key].rows.findIndex(
         r => (r.id || r.username) === (data.id || data.username)
@@ -248,6 +318,8 @@ const DB = {
     _showLoading();
     try {
       const r = await _post({ action: 'upsert', sheet, data });
+      // Invalidate related caches
+      _invalidateRelated(sheet);
       if (_cache[key] && _cache[key].rows) {
         const serverIdx = _cache[key].rows.findIndex(
           r => (r.id || r.username) === (data.id || data.username)
@@ -256,16 +328,16 @@ const DB = {
       }
       return r.row;
     } catch (error) {
-      if (oldCache) _cache[key] = oldCache; else _invalidate(sheet);
+      if (oldCache) _cache[key] = oldCache;
+      else _invalidate(sheet);
       throw error;
     } finally {
       _hideLoading();
     }
   },
 
-  // --- DELETE BY ID with Optimistic Update ---
   async delete(sheet, id) {
-    const key      = _cacheKey(sheet);
+    const key = _cacheKey(sheet);
     const oldCache = _cache[key]
       ? { ..._cache[key], rows: [...(_cache[key].rows || [])] }
       : null;
@@ -279,16 +351,17 @@ const DB = {
     _showLoading();
     try {
       const r = await _post({ action: 'delete', sheet, id });
+      _invalidateRelated(sheet);
       return r.deleted;
     } catch (error) {
-      if (oldCache) _cache[key] = oldCache; else _invalidate(sheet);
+      if (oldCache) _cache[key] = oldCache;
+      else _invalidate(sheet);
       throw error;
     } finally {
       _hideLoading();
     }
   },
 
-  // --- DELETE WHERE field = value ---
   async deleteWhere(sheet, field, value) {
     _invalidate(sheet);
     _showLoading();
@@ -300,10 +373,9 @@ const DB = {
     }
   },
 
-  // --- BATCH UPSERT ---
   async batchUpsert(operations) {
     const sheets = [...new Set(operations.map(op => op.sheet))];
-    sheets.forEach(s => _invalidate(s));
+    sheets.forEach(s => _invalidateRelated(s));
     _showLoading();
     try {
       const r = await _post({ action: 'batchUpsert', operations });
@@ -313,10 +385,9 @@ const DB = {
     }
   },
 
-  // --- BATCH DELETE ---
   async batchDelete(operations) {
     const sheets = [...new Set(operations.map(op => op.sheet))];
-    sheets.forEach(s => _invalidate(s));
+    sheets.forEach(s => _invalidateRelated(s));
     _showLoading();
     try {
       const r = await _post({ action: 'batchDelete', operations });
@@ -326,7 +397,6 @@ const DB = {
     }
   },
 
-  // --- INIT SHEETS ---
   async initSheets() {
     _showLoading();
     try {
@@ -337,7 +407,7 @@ const DB = {
   }
 };
 
-/* ==================== STORAGE SERVICE (compatibility shim) ==================== */
+/* ==================== STORAGE SERVICE ==================== */
 const StorageService = {
   async getData(sheet) {
     try {
@@ -373,7 +443,7 @@ const StorageService = {
   }
 };
 
-/* ==================== DATA ACCESS LAYER (async) ==================== */
+/* ==================== DATA ACCESS LAYER (Optimized) ==================== */
 const DataAccess = {
 
   getCurrentUser() {
@@ -384,7 +454,6 @@ const DataAccess = {
     return 'Admin KPT';
   },
 
-  // ---------- COMPANY ----------
   async getCompany() {
     const list = await StorageService.getData('company');
     return list.length > 0 ? list[0] : null;
@@ -404,7 +473,6 @@ const DataAccess = {
     return data;
   },
 
-  // ---------- PROJECTS ----------
   async getAllProjects() {
     return StorageService.getData('projects');
   },
@@ -416,8 +484,7 @@ const DataAccess = {
 
   async getProjectById(id) {
     if (!id) return null;
-    const all = await this.getAllProjects();
-    return all.find(p => p.id === id) || null;
+    return DB.getById('projects', id);
   },
 
   async saveProject(data) {
@@ -445,15 +512,13 @@ const DataAccess = {
     return true;
   },
 
-  // ---------- JSA ----------
   async getAllJSA() {
     return StorageService.getData('jsa');
   },
 
   async getJSAById(id) {
     if (!id) return null;
-    const all = await this.getAllJSA();
-    return all.find(j => j.id === id) || null;
+    return DB.getById('jsa', id);
   },
 
   async getJSAByProject(projectId) {
@@ -479,15 +544,13 @@ const DataAccess = {
     return true;
   },
 
-  // ---------- WORK METHODS ----------
   async getAllWorkMethods() {
     return StorageService.getData('work_methods');
   },
 
   async getWorkMethodById(id) {
     if (!id) return null;
-    const all = await this.getAllWorkMethods();
-    return all.find(w => w.id === id) || null;
+    return DB.getById('work_methods', id);
   },
 
   async getWorkMethodsByProject(projectId) {
@@ -513,7 +576,6 @@ const DataAccess = {
     return true;
   },
 
-  // ---------- PERSONNEL ----------
   async getAllPersonnel() {
     return StorageService.getData('personnel');
   },
@@ -523,6 +585,7 @@ const DataAccess = {
     data.updated_at = new Date().toISOString();
     await DB.upsert('personnel', data);
     _invalidate('personnel');
+    _invalidate('manpower'); // Karena manpower reference personnel
     StorageService.addAuditLog('SAVE_PERSONNEL', `Personel ${data.name} disimpan`);
     return data;
   },
@@ -537,7 +600,6 @@ const DataAccess = {
     return true;
   },
 
-  // ---------- MANPOWER ----------
   async getAllManpower() {
     return StorageService.getData('manpower');
   },
@@ -584,15 +646,13 @@ const DataAccess = {
     return true;
   },
 
-  // ---------- PROCUREMENT ----------
   async getAllPO() {
     return StorageService.getData('procurement');
   },
 
   async getPOById(id) {
     if (!id) return null;
-    const all = await this.getAllPO();
-    return all.find(p => p.id === id) || null;
+    return DB.getById('procurement', id);
   },
 
   async getPOByProject(projectId) {
@@ -632,7 +692,6 @@ const DataAccess = {
     return true;
   },
 
-  // ---------- ACCOUNTS ----------
   async getAccounts() {
     return StorageService.getData('accounts');
   },
@@ -650,27 +709,3 @@ const DataAccess = {
   }
 };
 
-/* ==================== UTILITY: doc number generators (async) ==================== */
-window._patchUtility = async function () {
-  if (typeof UtilityService === 'undefined') return;
-
-  UtilityService.generateJSADocNumber = async function () {
-    const currentYear = new Date().getFullYear();
-    const jsaList     = await DataAccess.getAllJSA();
-    const prefix      = `JSA-${currentYear}-`;
-    const count       = jsaList.filter(j => j.document_number && j.document_number.startsWith(prefix)).length;
-    return `${prefix}${String(count + 1).padStart(3, '0')}`;
-  };
-
-  UtilityService.generateWMDocNumber = async function () {
-    const currentYear = new Date().getFullYear();
-    const wmList      = await DataAccess.getAllWorkMethods();
-    const prefix      = `WM-${currentYear}-`;
-    const count       = wmList.filter(w => w.document_number && w.document_number.startsWith(prefix)).length;
-    return `${prefix}${String(count + 1).padStart(3, '0')}`;
-  };
-
-  UtilityService.getDashboardStats = async function () {
-    return await DB.getStats();
-  };
-};

@@ -10,7 +10,6 @@ const ROLES = {
 
 /* ==================== AUTH SERVICE ==================== */
 const AuthService = {
-  // Session tetap pakai sessionStorage (tidak perlu di server)
   getSession() {
     try { const r = sessionStorage.getItem(AUTH_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
   },
@@ -28,7 +27,7 @@ const AuthService = {
   logout() { this.clearSession(); window.location.hash=''; window.location.reload(); }
 };
 
-/* ==================== NAVBAR SERVICE ==================== */
+/* ==================== SIDEBAR SERVICE ==================== */
 const AppNavbar = {
   toggleSidebar() {
     const sidebar = document.getElementById('appSidebar');
@@ -52,16 +51,16 @@ const AppNavbar = {
     if (o) o.classList.remove('active');
     document.body.style.overflow = '';
   },
-  closeSidebarOnMobile() { if (window.innerWidth < 1024) this.closeSidebar(); },
   updateUserInfo(session) {
     if (!session) return;
     const rc = ROLES[session.role];
-    const nm = document.getElementById('sidebarUserName'); if (nm) nm.textContent = session.name||'User';
-    const rl = document.getElementById('sidebarUserRole'); if (rl) rl.textContent = rc?.label||'Role';
+    const nm = document.getElementById(EL.SIDEBAR_USERNAME); 
+    if (nm) nm.textContent = session.name||'User';
+    const rl = document.getElementById(EL.SIDEBAR_USERROLE); 
+    if (rl) rl.textContent = rc?.label||'Role';
   },
   init() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeSidebar(); });
-    // Close sidebar if window resizes to desktop
     window.addEventListener('resize', () => {
       if (window.innerWidth >= 1024) this.closeSidebar();
     });
@@ -71,7 +70,9 @@ const AppNavbar = {
 /* ==================== LOGIN PAGE ==================== */
 const LoginPage = {
   show() {
-    ['appNavbar','appSidebar','appMainContent'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
+    ['appSidebar','appMainContent'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
+    const userInfoBar = document.getElementById('userInfoBar');
+    if (userInfoBar) userInfoBar.style.display = 'none';
     document.getElementById('sidebarOverlay')?.classList.remove('active');
     let c = document.getElementById('loginContainer');
     if (!c) { c = document.createElement('div'); c.id='loginContainer'; document.body.appendChild(c); }
@@ -86,7 +87,7 @@ const LoginPage = {
   renderHTML() {
     return `<div class="login-card">
       <div class="login-card__header">
-        <div class="login-card__logo"><img src="logo.png" alt="KPT Logo"></div>
+        <div class="login-card__logo"><img src="logo1.png" alt="KPT Logo"></div>
         <h1 class="login-card__title">PT. Kencana Prakarsa Teknik</h1>
       </div>
       <div class="login-card__body">
@@ -119,14 +120,12 @@ const LoginPage = {
       errorBox.style.display = 'flex'; return;
     }
 
-    // Show navbar spinner for login loading
     const spinner = document.getElementById('navbarLoadingSpinner');
     if (spinner) spinner.style.display = 'inline-block';
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memverifikasi…';
 
     try {
-      // Load accounts from Google Sheets
       const accounts = await DataAccess.getAccounts();
       
       if (!accounts || accounts.length === 0) {
@@ -166,7 +165,9 @@ const LoginPage = {
 
   hide() {
     document.getElementById('loginContainer').style.display = 'none';
-    ['appNavbar','appSidebar','appMainContent'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
+    ['appSidebar','appMainContent'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
+    const userInfoBar = document.getElementById('userInfoBar');
+    if (userInfoBar) userInfoBar.style.display = '';
   }
 };
 
@@ -234,7 +235,7 @@ const AppAuth = {
 
     const html = `<div class="page-header no-print">
       <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-people-fill"></i></span>Manajemen Akun</h2>
-      <button class="btn btn--primary btn--lg" onclick="AppAuth.showAddAccountForm()"><i class="bi bi-person-plus"></i> Tambah Akun</button>
+      <button class="btn btn--primary" onclick="AppAuth.showAddAccountForm()"><i class="bi bi-person-plus"></i> Tambah Akun</button>
     </div>
     <div id="${EL.ADD_ACCOUNT_FORM_CARD}" class="card" style="display:none;">
       <div class="card-header"><i class="bi bi-person-plus"></i> Tambah / Edit Akun</div>
@@ -280,12 +281,9 @@ const AppAuth = {
       </table>
     </div></div></div>`;
 
-    // Render ke DOM dulu, baru pasang event listener
-    // — menggantikan <script> inline yang tidak andal dan tidak aman
     const mainContent = document.getElementById(EL.APP_MAIN_CONTENT);
     if (mainContent) {
       mainContent.innerHTML = html;
-      // Pasang event delegation setelah elemen ada di DOM
       const card = document.getElementById(EL.ACCOUNT_TABLE_CARD);
       if (card) {
         card.addEventListener('click', function (e) {
@@ -297,7 +295,7 @@ const AppAuth = {
           if (action === 'delete-account') AppAuth.deleteAccount(username);
         });
       }
-      return html; // kembalikan html agar backward-compatible dengan caller
+      return html;
     }
     return html;
   },

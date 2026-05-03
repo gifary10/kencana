@@ -73,39 +73,39 @@ const ManpowerPage = {
             <div class="row g-3">
               <div class="col-sm-6 col-md-4">
                 <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
-                <input type="text" class="form-control form-control-sm" id="inputPersonnelName"
+                <input type="text" class="form-control" id="inputPersonnelName"
                   placeholder="Nama lengkap">
               </div>
               <div class="col-sm-6 col-md-4">
                 <label class="form-label">Jabatan / Posisi <span class="text-danger">*</span></label>
-                <input type="text" class="form-control form-control-sm" id="inputPersonnelPosition"
+                <input type="text" class="form-control" id="inputPersonnelPosition"
                   placeholder="Project Manager, Welder, dll.">
               </div>
               <div class="col-sm-6 col-md-4">
                 <label class="form-label">NIK <span class="text-danger">*</span></label>
-                <input type="text" class="form-control form-control-sm" id="inputPersonnelNik"
+                <input type="text" class="form-control" id="inputPersonnelNik"
                   placeholder="16 digit NIK KTP" maxlength="16">
               </div>
               <div class="col-sm-6 col-md-4">
                 <label class="form-label">Tanggal Lahir <span class="text-danger">*</span></label>
-                <input type="date" class="form-control form-control-sm" id="inputPersonnelBirthDate">
+                <input type="date" class="form-control" id="inputPersonnelBirthDate">
               </div>
               <div class="col-sm-6 col-md-2">
                 <label class="form-label">Umur</label>
-                <input type="text" class="form-control form-control-sm" id="displayPersonnelAge"
+                <input type="text" class="form-control" id="displayPersonnelAge"
                   readonly placeholder="—" style="background:#f8fafc;cursor:default;">
               </div>
               <div class="col-sm-12 col-md-6">
                 <label class="form-label">Alamat</label>
-                <input type="text" class="form-control form-control-sm" id="inputPersonnelAddress"
+                <input type="text" class="form-control" id="inputPersonnelAddress"
                   placeholder="Alamat lengkap">
               </div>
             </div>
             <div class="d-flex gap-2 mt-3">
-              <button class="btn btn--primary btn--sm" onclick="ManpowerPage.savePersonnel()">
+              <button class="btn btn--primary" onclick="ManpowerPage.savePersonnel()">
                 <i class="bi bi-save"></i> Simpan
               </button>
-              <button class="btn btn--outline-secondary btn--sm" onclick="ManpowerPage.resetPersonnelForm()">
+              <button class="btn btn--outline-secondary" onclick="ManpowerPage.resetPersonnelForm()">
                 <i class="bi bi-x-lg"></i> Batal
               </button>
             </div>
@@ -211,7 +211,7 @@ const ManpowerPage = {
       content.innerHTML = '<div class="card"><div class="card-body text-center py-4 text-muted">'
         + '<i class="bi bi-person-x" style="font-size:2rem;"></i>'
         + '<p class="mt-2">Belum ada personel. Tambahkan dulu di tab <strong>Master Personel</strong>.</p>'
-        + '<button class="btn btn--primary btn--sm mt-1" onclick="ManpowerPage.switchTab(\'master\')">'
+        + '<button class="btn btn--primary" onclick="ManpowerPage.switchTab(\'master\')">'
         + '<i class="bi bi-person-plus"></i> Tambah Personel</button></div></div>';
       return;
     }
@@ -247,7 +247,7 @@ const ManpowerPage = {
       + '<div class="card-footer d-flex justify-content-between align-items-center">'
       + '<span class="text-muted" style="font-size:.78rem;"><i class="bi bi-info-circle"></i>'
       + ' Centang personel yang bertugas di proyek ini</span>'
-      + '<button class="btn btn--primary btn--sm" onclick="ManpowerPage.saveAssignment()">'
+      + '<button class="btn btn--primary" onclick="ManpowerPage.saveAssignment()">'
       + '<i class="bi bi-save"></i> Simpan Penugasan</button>'
       + '</div></div>';
 
@@ -342,7 +342,7 @@ const ManpowerPage = {
       const { action, id, name } = btn.dataset;
       if (action === 'edit')   ManpowerPage.editPersonnel(id);
       if (action === 'delete') ManpowerPage.deletePersonnel(id, name);
-    }, { once: true });
+    });
   },
 
   resetPersonnelForm() {

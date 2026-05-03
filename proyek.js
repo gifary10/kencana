@@ -1,4 +1,4 @@
-// proyek.js
+// proyek.js — OPTIMIZED with lazy loading & project summaries
 const ProjectPage = {
   render() {
     return `
@@ -12,16 +12,16 @@ const ProjectPage = {
               <label class="form-label">Nama Proyek <span class="text-danger">*</span></label>
               <input type="text" class="form-control" id="inputProjectName" required placeholder="Pembangunan Gedung A">
             </div>
-            <div class="col-sm-6"><label class="form-label">Client</label><input type="text" class="form-control" id="inputProjectClient"></div>
-            <div class="col-sm-6"><label class="form-label">Lokasi</label><input type="text" class="form-control" id="inputProjectLocation"></div>
-            <div class="col-sm-6"><label class="form-label">PIC</label><input type="text" class="form-control" id="inputProjectPic"></div>
-            <div class="col-sm-6"><label class="form-label">Nilai Kontrak</label><input type="number" class="form-control" id="inputProjectContractValue"></div>
-            <div class="col-sm-3"><label class="form-label">Tgl Mulai</label><input type="date" class="form-control" id="inputProjectStartDate"></div>
-            <div class="col-sm-3"><label class="form-label">Tgl Selesai</label><input type="date" class="form-control" id="inputProjectEndDate"></div>
+            <div class="col-sm-6"><label class="form-label">Client / Perusahaan</label><input type="text" class="form-control" id="inputProjectClient"></div>
+            <div class="col-sm-6"><label class="form-label">Lokasi / Alamat</label><input type="text" class="form-control" id="inputProjectLocation"></div>
+            <div class="col-sm-4"><label class="form-label">PIC</label><input type="text" class="form-control" id="inputProjectPic"></div>
+            <div class="col-sm-4"><label class="form-label">Tgl Mulai</label><input type="date" class="form-control" id="inputProjectStartDate"></div>
+            <div class="col-sm-4"><label class="form-label">Tgl Selesai</label><input type="date" class="form-control" id="inputProjectEndDate"></div>
+            <div class="col-sm-3"><label class="form-label">Nilai Proyek</label><input type="number" class="form-control" id="inputProjectContractValue"></div>
           </div>
-          <div class="d-flex gap-2 mt-3">
-            <button type="button" class="btn btn--primary" onclick="ProjectPage.saveProject()"><i class="bi bi-save"></i> Simpan</button>
+          <div class="d-flex justify-content-end gap-2 mt-4">
             <button type="button" class="btn btn--outline-secondary" onclick="ProjectPage.hideProjectForm()">Batal</button>
+            <button type="button" class="btn btn--primary" onclick="ProjectPage.saveProject()"><i class="bi bi-save"></i> Simpan</button>
           </div>
         </form>
       </div>
@@ -32,11 +32,11 @@ const ProjectPage = {
         <div class="row g-2 p-3">
           <div class="col-9">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchProject" placeholder="Cari proyek..." oninput="ProjectPage.loadProjectTable()">
+              <input type="text" class="form-control" id="inputSearchProject" placeholder="Cari proyek..." oninput="ProjectPage.loadProjectTable()">
             </div>
           </div>
           <div class="col-2">
-            <button class="btn btn--primary btn--lg" onclick="ProjectPage.showProjectForm()"><i class="bi bi-plus-lg"></i></button>
+            <button class="btn btn--primary" onclick="ProjectPage.showProjectForm()"><i class="bi bi-plus-lg"></i></button>
           </div>
         </div>
       </div>
@@ -46,8 +46,8 @@ const ProjectPage = {
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table--hover mb-0">
-            <thead><tr><th>Nama Proyek</th><th>Client</th><th>Lokasi</th><th>PIC</th><th>JSA</th><th>WM</th><th>PO</th><th class="text-center">Aksi</th></tr></thead>
-            <tbody id="projectTableBody"><tr><td colspan="8" class="text-center py-4">Memuat…</td></tr></tbody>
+            <thead><tr><th>Nama Proyek</th><th>Client</th><th>Lokasi</th><th>PIC</th><th>Tgl Mulai</th><th>Tgl Selesai</th><th class="text-center">Aksi</th></tr></thead>
+            <tbody id="projectTableBody"><tr><td colspan="7" class="text-center py-4">Memuat…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -55,39 +55,37 @@ const ProjectPage = {
     <div id="projectCardList" class="d-md-none"></div>`;
   },
 
-  async init() { await this.loadProjectTable(); },
+  async init() { 
+    await this.loadProjectTable(); 
+  },
 
   async loadProjectTable() {
     try {
       const searchQuery = (document.getElementById('inputSearchProject')?.value || '').toLowerCase();
+      
       let projects = await DataAccess.getAllProjects();
-      if (searchQuery) projects = projects.filter(p =>
-        (p.name||'').toLowerCase().includes(searchQuery) ||
-        (p.client||'').toLowerCase().includes(searchQuery)
-      );
+      
+      if (searchQuery) {
+        projects = projects.filter(p =>
+          (p.name||'').toLowerCase().includes(searchQuery) ||
+          (p.client||'').toLowerCase().includes(searchQuery)
+        );
+      }
       projects = [...projects].reverse();
-
-      const [allJSA, allWM, allPO] = await Promise.all([
-        DataAccess.getAllJSA(), DataAccess.getAllWorkMethods(), DataAccess.getAllPO()
-      ]);
 
       const tableBody = document.getElementById('projectTableBody');
       if (tableBody) {
         if (!projects.length) {
-          tableBody.innerHTML = `<tr><td colspan="8" class="text-center py-5"><div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div></td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-5"><div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div></td></tr>`;
         } else {
           tableBody.innerHTML = projects.map(p => {
-            const jc = allJSA.filter(j => j.project_id === p.id).length;
-            const wc = allWM.filter(w => w.project_id === p.id).length;
-            const pc = allPO.filter(o => o.project_id === p.id).length;
             return `<tr>
               <td><strong>${UtilityService.escapeHtml(p.name)}</strong></td>
               <td>${UtilityService.escapeHtml(p.client||'-')}</td>
               <td>${UtilityService.escapeHtml(p.location||'-')}</td>
               <td>${UtilityService.escapeHtml(p.pic||'-')}</td>
-              <td><span class="badge bg-info">${jc}</span></td>
-              <td><span class="badge bg-primary">${wc}</span></td>
-              <td><span class="badge bg-indigo">${pc}</span></td>
+              <td>${UtilityService.formatDate(p.start_date)}</td>
+              <td>${UtilityService.formatDate(p.end_date)}</td>
               <td class="text-center">
                 <button class="btn btn--xs btn--outline-info me-1"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
                 <button class="btn btn--xs btn--outline-warning me-1" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
@@ -95,6 +93,8 @@ const ProjectPage = {
               </td>
             </tr>`;
           }).join('');
+          
+          // Event delegation
           tableBody.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
@@ -102,28 +102,31 @@ const ProjectPage = {
             if (action === 'detail') await ProjectPage.showProjectDetail(id);
             if (action === 'edit')   await ProjectPage.editProject(id);
             if (action === 'delete') await ProjectPage.deleteProject(id);
-          }, { once: true });
+          });
         }
       }
 
+      // Mobile card list
       const cardList = document.getElementById('projectCardList');
       if (cardList) {
-        cardList.innerHTML = projects.length ? projects.map(p => `
-          <div class="card"><div class="card-body py-3">
-            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
-              <div class="flex-grow-1 overflow-hidden">
-                <div class="fw-bold" style="font-size:.9rem;">${UtilityService.escapeHtml(p.name)}</div>
-                <div class="text-muted" style="font-size:.76rem;">${UtilityService.escapeHtml(p.client||'')}</div>
+        if (!projects.length) {
+          cardList.innerHTML = '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div>';
+        } else {
+          cardList.innerHTML = projects.map(p => {
+            return `<div class="card"><div class="card-body py-3">
+              <div class="fw-bold" style="font-size:.9rem;">${UtilityService.escapeHtml(p.name)}</div>
+              <div class="text-muted" style="font-size:.76rem;">${UtilityService.escapeHtml(p.client||'')}</div>
+              <div class="text-muted" style="font-size:.72rem;">
+                <i class="bi bi-calendar"></i> ${UtilityService.formatDate(p.start_date)} — ${UtilityService.formatDate(p.end_date)}
               </div>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn--xs btn--outline-info"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
-              <button class="btn btn--xs btn--outline-warning" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
-              <button class="btn btn--xs btn--outline-danger ms-auto" data-action="delete" data-id="${p.id}"><i class="bi bi-trash"></i></button>
-            </div>
-          </div></div>`).join('') :
-          '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div>';
-        if (projects.length) {
+              <div class="d-flex gap-2 mt-2">
+                <button class="btn btn--xs btn--outline-info"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
+                <button class="btn btn--xs btn--outline-warning" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn--xs btn--outline-danger ms-auto" data-action="delete" data-id="${p.id}"><i class="bi bi-trash"></i></button>
+              </div>
+            </div></div>`;
+          }).join('');
+          
           cardList.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
@@ -131,7 +134,7 @@ const ProjectPage = {
             if (action === 'detail') await ProjectPage.showProjectDetail(id);
             if (action === 'edit')   await ProjectPage.editProject(id);
             if (action === 'delete') await ProjectPage.deleteProject(id);
-          }, { once: true });
+          });
         }
       }
     } catch (err) {
@@ -217,34 +220,98 @@ const ProjectPage = {
     );
   },
 
+  // OPTIMIZED: Detail proyek menggunakan getProjectSummary + lazy load
   async showProjectDetail(id) {
     const p = await DataAccess.getProjectById(id);
     if (!p) return;
-    const [jsa, wm, mp, po] = await Promise.all([
-      DataAccess.getJSAByProject(id), DataAccess.getWorkMethodsByProject(id),
-      DataAccess.getManpowerByProject(id), DataAccess.getPOByProject(id)
-    ]);
-    const totalPO = po.reduce((s,o) => s + (parseFloat(o.total_price)||0), 0);
+    
+    // Ambil summary dulu (cepat)
+    const summary = await DB.getProjectSummary(id);
+    
+    // Tampilkan modal dengan data summary
     document.getElementById('projectDetailTitle').innerHTML = `<i class="bi bi-clipboard-data"></i> ${UtilityService.escapeHtml(p.name)}`;
-    document.getElementById('projectDetailContent').innerHTML = `<div class="row g-3">
-      <div class="col-sm-6"><div class="card"><div class="card-body"><h6>Informasi Proyek</h6>
-        <table class="table table-sm mb-0">
-          <tr><td class="fw-semibold">Client</td><td>${UtilityService.escapeHtml(p.client||'-')}</td></tr>
-          <tr><td class="fw-semibold">Lokasi</td><td>${UtilityService.escapeHtml(p.location||'-')}</td></tr>
-          <tr><td class="fw-semibold">PIC</td><td>${UtilityService.escapeHtml(p.pic||'-')}</td></tr>
-          <tr><td class="fw-semibold">Nilai Kontrak</td><td><strong>${UtilityService.formatCurrency(p.contract_value)}</strong></td></tr>
-        </table>
-      </div></div></div>
-      <div class="col-sm-6"><div class="card"><div class="card-body"><h6>Ringkasan</h6>
-        <table class="table table-sm mb-0">
-          <tr><td class="fw-semibold">JSA</td><td>${jsa.length} dokumen</td></tr>
-          <tr><td class="fw-semibold">Metode Kerja</td><td>${wm.length} dokumen</td></tr>
-          <tr><td class="fw-semibold">Man Power</td><td>${mp.length} personel</td></tr>
-          <tr><td class="fw-semibold">PO</td><td>${po.length} item</td></tr>
-          <tr><td class="fw-semibold">Total Pembelian</td><td><strong class="text-success">${UtilityService.formatCurrency(totalPO)}</strong></td></tr>
-        </table>
-      </div></div></div>
-    </div>`;
+    document.getElementById('projectDetailContent').innerHTML = `
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <div class="card"><div class="card-body">
+            <h6>Informasi Proyek</h6>
+            <table class="table table-sm mb-0">
+              <tr><td class="fw-semibold">Client</td><td>${UtilityService.escapeHtml(p.client||'-')}</td></tr>
+              <tr><td class="fw-semibold">Lokasi</td><td>${UtilityService.escapeHtml(p.location||'-')}</td></tr>
+              <tr><td class="fw-semibold">PIC</td><td>${UtilityService.escapeHtml(p.pic||'-')}</td></tr>
+              <tr><td class="fw-semibold">Nilai Kontrak</td><td><strong>${UtilityService.formatCurrency(p.contract_value)}</strong></td></tr>
+              <tr><td class="fw-semibold">Tgl Mulai</td><td>${UtilityService.formatDate(p.start_date)}</td></tr>
+              <tr><td class="fw-semibold">Tgl Selesai</td><td>${UtilityService.formatDate(p.end_date)}</td></tr>
+            </table>
+          </div></div>
+        </div>
+        <div class="col-sm-6">
+          <div class="card"><div class="card-body">
+            <h6>Ringkasan</h6>
+            <table class="table table-sm mb-0">
+              <tr><td class="fw-semibold">JSA</td><td><span id="detailJSACount">${summary.jsa_count}</span> dokumen</td></tr>
+              <tr><td class="fw-semibold">Metode Kerja</td><td><span id="detailWMCount">${summary.wm_count}</span> dokumen</td></tr>
+              <tr><td class="fw-semibold">Man Power</td><td><span id="detailMPCount">${summary.mp_count}</span> personel</td></tr>
+              <tr><td class="fw-semibold">PO</td><td><span id="detailPOCount">${summary.po_count}</span> item</td></tr>
+            </table>
+          </div></div>
+        </div>
+      </div>`;
+    
     new bootstrap.Modal(document.getElementById('projectDetailModal')).show();
+    
+    // Lazy load detail data di background (tidak blocking UI)
+    this._lazyLoadProjectDetail(id);
+  },
+  
+  async _lazyLoadProjectDetail(id) {
+    try {
+      const p = await DataAccess.getProjectById(id);
+      if (!p) return;
+
+      const [jsa, wm, mp, po] = await Promise.all([
+        DataAccess.getJSAByProject(id),
+        DataAccess.getWorkMethodsByProject(id),
+        DataAccess.getManpowerByProject(id),
+        DataAccess.getPOByProject(id)
+      ]);
+      
+      const totalPO = po.reduce((s,o) => s + (parseFloat(o.total_price)||0), 0);
+      
+      // Update UI dengan data detail (jika modal masih terbuka)
+      const detailContent = document.getElementById('projectDetailContent');
+      if (detailContent && document.getElementById('projectDetailModal').classList.contains('show')) {
+        detailContent.innerHTML = `
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="card"><div class="card-body">
+                <h6>Informasi Proyek</h6>
+                <table class="table table-sm mb-0">
+                  <tr><td class="fw-semibold">Client</td><td>${UtilityService.escapeHtml(p.client||'-')}</td></tr>
+                  <tr><td class="fw-semibold">Lokasi</td><td>${UtilityService.escapeHtml(p.location||'-')}</td></tr>
+                  <tr><td class="fw-semibold">PIC</td><td>${UtilityService.escapeHtml(p.pic||'-')}</td></tr>
+                  <tr><td class="fw-semibold">Nilai Kontrak</td><td><strong>${UtilityService.formatCurrency(p.contract_value)}</strong></td></tr>
+                  <tr><td class="fw-semibold">Tgl Mulai</td><td>${UtilityService.formatDate(p.start_date)}</td></tr>
+                  <tr><td class="fw-semibold">Tgl Selesai</td><td>${UtilityService.formatDate(p.end_date)}</td></tr>
+                </table>
+              </div></div>
+            </div>
+            <div class="col-sm-6">
+              <div class="card"><div class="card-body">
+                <h6>Ringkasan</h6>
+                <table class="table table-sm mb-0">
+                  <tr><td class="fw-semibold">JSA</td><td>${jsa.length} dokumen</td></tr>
+                  <tr><td class="fw-semibold">Metode Kerja</td><td>${wm.length} dokumen</td></tr>
+                  <tr><td class="fw-semibold">Man Power</td><td>${mp.length} personel</td></tr>
+                  <tr><td class="fw-semibold">PO</td><td>${po.length} item</td></tr>
+                  <tr><td class="fw-semibold">Total Pembelian</td><td><strong class="text-success">${UtilityService.formatCurrency(totalPO)}</strong></td></tr>
+                </table>
+              </div></div>
+            </div>
+          </div>`;
+      }
+    } catch (err) {
+      console.error('Lazy load detail failed:', err);
+    }
   }
 };

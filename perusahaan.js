@@ -14,22 +14,27 @@ const CompanyPage = {
               <label class="form-label">Alamat Lengkap</label>
               <textarea class="form-control" id="inputAddress" rows="2" placeholder="Jl. Contoh No. 123, Kota, Provinsi"></textarea>
             </div>
-            <div class="col-sm-6">
+            <div class="col-sm-4">
               <label class="form-label">Telepon / Kontak</label>
               <input type="text" class="form-control" id="inputContact" placeholder="+62 812-3456-7890">
             </div>
-            <div class="col-sm-6">
+            <div class="col-sm-4">
               <label class="form-label">Email</label>
               <input type="email" class="form-control" id="inputEmail" placeholder="info@perusahaan.com">
             </div>
-            <div class="col-sm-6">
+            <div class="col-sm-4">
               <label class="form-label">Website</label>
               <input type="text" class="form-control" id="inputWebsite" placeholder="www.perusahaan.com">
             </div>
           </div>
-          <div class="d-flex gap-2 mt-4">
-            <button type="button" class="btn btn--primary" onclick="CompanyPage.saveCompanyData()"><i class="bi bi-save"></i> Simpan</button>
-            <button type="button" class="btn btn--outline-secondary" onclick="CompanyPage.loadCompanyData()"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn--outline-secondary" onclick="CompanyPage.loadCompanyData()">
+              <i class="bi bi-arrow-counterclockwise"></i> Reset
+            </button>
+            <button type="button" class="btn btn--primary" onclick="CompanyPage.saveCompanyData()">
+              <i class="bi bi-save"></i> Simpan
+            </button>
           </div>
         </form>
       </div>

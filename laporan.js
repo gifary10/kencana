@@ -9,23 +9,23 @@ const ReportPage = {
       
       <div class="card no-print"><div class="card-body p-0">
         <div class="row g-2 p-3">
-          <div class="col-12 col-sm-4">
+          <div class="col-4">
             <select class="form-select form-select-sm" id="selectReportProject" onchange="ReportPage.onProjectChange()">
               <option value="">Semua Proyek</option>
             </select>
-            <div class="page-header no-print">
-        <button class="btn btn--primary btn--sm" onclick="window.print()"><i class="bi bi-printer"></i> Cetak PDF</button>
-      </div>
           </div>
-          <div class="col-12"><div id="reportDocSelector"></div></div>
+          <div class="col-4"><div id="reportDocSelector"></div></div>
           <div class="col-12">
-            <div class="tab-nav" id="reportTabs" style="margin-bottom:0;border-bottom:none;">
-              <button class="tab-nav__btn tab-nav__btn--active" onclick="ReportPage.switchReportTab('jsa')">JSA</button>
-              <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('wm')">Metode Kerja</button>
-              <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('po')">Cost Project</button>
-              <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('project')">Proyek</button>
-              <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('cashflow')">Keuangan</button>
-              <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('manpower')">Man Power</button>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div class="tab-nav" id="reportTabs" style="margin-bottom:0;border-bottom:none;">
+                <button class="tab-nav__btn tab-nav__btn--active" onclick="ReportPage.switchReportTab('jsa')">JSA</button>
+                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('wm')">Metode Kerja</button>
+                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('po')">Cost Project</button>
+                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('project')">Proyek</button>
+                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('cashflow')">Keuangan</button>
+                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('manpower')">Man Power</button>
+              </div>
+              <button class="btn btn--primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak PDF</button>
             </div>
           </div>
         </div>
@@ -113,15 +113,15 @@ const ReportPage = {
     if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div>${subtitle?`<div class="report-header__subtitle">${UtilityService.escapeHtml(subtitle)}</div>`:''}<div class="report-header__date">Tanggal Cetak: ${UtilityService.formatDate(new Date().toISOString())}</div></div></div>`;
     return `<div class="report-header"><div class="report-header__layout">
       <div class="report-header__left">
-        <div class="report-header__logo-section"><img src="logo.png" alt="Logo" style="width:100%;height:100%;object-fit:contain;"></div>
         <div class="report-header__company-info">
+          <div class="report-header__logo-section"><img src="logo.png" alt="Logo" style="width:100%;height:100%"></div>
           <div class="report-header__company-name">${UtilityService.escapeHtml(company.name)}</div>
-          ${company.address?`<div class="report-header__company-detail"><i class="bi bi-geo-alt"></i> ${UtilityService.escapeHtml(company.address)}</div>`:''}
+          ${company.address?`<div class="report-header__company-detail"> ${UtilityService.escapeHtml(company.address)}</div>`:''}
           <div class="report-header__company-contact">
             ${company.contact?`<span><i class="bi bi-telephone"></i> ${UtilityService.escapeHtml(company.contact)}</span>`:''}
             ${company.email?`<span><i class="bi bi-envelope"></i> ${UtilityService.escapeHtml(company.email)}</span>`:''}
+            ${company.website?`<span><i class="bi bi-globe"></i> ${UtilityService.escapeHtml(company.website)}</span>`:''}
           </div>
-          ${company.website?`<div class="report-header__company-detail"><i class="bi bi-globe"></i> ${UtilityService.escapeHtml(company.website)}</div>`:''}
         </div>
       </div>
       <div class="report-header__right">
@@ -155,7 +155,7 @@ const ReportPage = {
     list.forEach((jsa,index)=>{
       const project=this._data.projects.find(p=>p.id===jsa.project_id);
       if(index>0) html+=`<div class="page-break"></div>`;
-      html+=this.buildReportHeader(company,'JOB SAFETY ANALYSIS (JSA)',jsa.document_number,'bi-journal-check');
+      html+=this.buildReportHeader(company,'JOB SAFETY ANALYSIS',jsa.document_number,'bi-journal-check');
       html+=this.buildProjectInfoSection(project,false);
       html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('No. Dokumen JSA',`<strong>${UtilityService.escapeHtml(jsa.document_number)}</strong>`)}${this.createReportRow('Revisi',UtilityService.escapeHtml(jsa.revision||'0'))}${this.createReportRow('Tanggal Pembuatan',UtilityService.formatDate(jsa.date))}</tbody></table>`;
       const apdItems=[...((jsa.ppe?.selected_items)||[]),...((jsa.ppe?.custom_items)||[]).filter(Boolean)];
@@ -185,7 +185,7 @@ const ReportPage = {
     list.forEach((wm,index)=>{
       const project=this._data.projects.find(p=>p.id===wm.project_id);
       if(index>0) html+=`<div class="page-break"></div>`;
-      html+=this.buildReportHeader(company,'WORK METHOD STATEMENT',wm.document_number,'bi-diagram-3');
+      html+=this.buildReportHeader(company,'WORK METHOD',wm.document_number,'bi-diagram-3');
       html+=this.buildProjectInfoSection(project,false);
       html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('No. Dokumen',`<strong>${UtilityService.escapeHtml(wm.document_number)}</strong>`)}${this.createReportRow('Revisi',UtilityService.escapeHtml(wm.revision||'0'))}${this.createReportRow('Tanggal Pembuatan',UtilityService.formatDate(wm.date))}</tbody></table>`;
       const steps=wm.work_steps||[];
@@ -207,7 +207,7 @@ const ReportPage = {
     const project=projectId?this._data.projects.find(p=>p.id===projectId):null;
     const grandTotal=list.reduce((s,p)=>s+(p.total_price||0),0);
     let html='';
-    html+=this.buildReportHeader(company,'LAPORAN PEMBELIAN MATERIAL',project?`Proyek: ${project.name}`:'Semua Proyek','bi-cart');
+    html+=this.buildReportHeader(company,'COST PROJECT',project?`Proyek: ${project.name}`:'Semua Proyek','bi-cart');
     if(project) html+=this.buildProjectInfoSection(project,false);
     html+=`<div class="report-section-title">Daftar Item Pembelian</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-30">No</th>${!projectId?'<th>Proyek</th>':''}<th>Nama Material</th><th>Spesifikasi</th><th class="col-width-50">Qty</th><th class="col-width-50">Unit</th><th class="col-width-100">Harga Satuan</th><th class="col-width-100">Total Harga</th><th class="col-width-90">Tanggal</th></tr></thead><tbody>`;
     list.forEach((po,i)=>{ const pp=this._data.projects.find(x=>x.id===po.project_id); html+=`<tr><td class="text-center">${i+1}</td>${!projectId?`<td>${UtilityService.escapeHtml(pp?.name||'-')}</td>`:''}<td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td><td>${UtilityService.escapeHtml(po.specification||'-')}</td><td class="text-center">${po.quantity||0}</td><td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td><td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td><td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td><td class="text-center">${UtilityService.formatDate(po.date)}</td></tr>`; });
@@ -222,7 +222,7 @@ const ReportPage = {
     if(projectId) projects=projects.filter(p=>p.id===projectId);
     if(!projects.length) return '<div class="alert alert-info">Tidak ada data Proyek untuk filter yang dipilih.</div>';
     let html='';
-    html+=this.buildReportHeader(company,'LAPORAN DATA PROYEK',`${projects.length} Proyek`,'bi-clipboard-data');
+    html+=this.buildReportHeader(company,'DATA PROYEK',`${projects.length} Proyek`,'bi-clipboard-data');
     projects.forEach((project,index)=>{
       const jsaList=this._data.jsa.filter(j=>j.project_id===project.id);
       const poList=this._data.po.filter(p=>p.project_id===project.id);
@@ -246,7 +246,7 @@ const ReportPage = {
     if(projectId) projects=projects.filter(p=>p.id===projectId);
     if(!projects.length) return '<div class="alert alert-info">Tidak ada data Proyek untuk filter yang dipilih.</div>';
     let html='', totalBudget=0, totalSpent=0;
-    html+=this.buildReportHeader(company,'LAPORAN KEUANGAN PROYEK',`${projects.length} Proyek`,'bi-cash-stack');
+    html+=this.buildReportHeader(company,'KEUANGAN PROYEK',`${projects.length} Proyek`,'bi-cash-stack');
     projects.forEach((project,index)=>{
       const poList=this._data.po.filter(p=>p.project_id===project.id);
       const totalPO=poList.reduce((s,p)=>s+(p.total_price||0),0);
@@ -298,7 +298,7 @@ const ReportPage = {
     });
 
     let html = '';
-    html += this.buildReportHeader(company, 'DAFTAR PERSONEL / MAN POWER',
+    html += this.buildReportHeader(company, 'MAN POWER',
       projectId ? (projects[0]?.name||'') : (projects.length + ' Proyek'), 'bi-people');
 
     projects.forEach((project, index) => {

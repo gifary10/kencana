@@ -131,9 +131,6 @@ const UtilityService = {
     return items;
   },
 
-  // generateJSADocNumber, generateWMDocNumber, getDashboardStats
-  // didefinisikan di db.js → _patchUtility() dan di-inject saat init.
-  // Tidak ada duplikasi di sini.
   async generateJSADocNumber() {
     const y = new Date().getFullYear(), prefix = `JSA-${y}-`;
     const rows = (await DB.getAll(SHEETS.JSA)).rows || [];

@@ -11,7 +11,7 @@ const JSAPage = {
         <div class="row g-2 p-3">
           <div class="col-8 col-sm-4">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchJSA" placeholder="Cari..." oninput="JSAPage.loadJSAList()">
+              <input type="text" class="form-control" id="inputSearchJSA" placeholder="Cari..." oninput="JSAPage.loadJSAList()">
             </div>
           </div>
           <div class="col-4 col-sm-3">
@@ -19,7 +19,7 @@ const JSAPage = {
               <option value="">Semua Proyek</option>
             </select>
           </div>
-          <button class="btn btn--primary btn--lg" onclick="JSAPage.showJSAForm()"><i class="bi bi-plus-lg"></i> JSA Baru</button>
+          <button class="btn btn--primary" onclick="JSAPage.showJSAForm()"><i class="bi bi-plus-lg"></i> JSA Baru</button>
         </div>
       </div></div>
       <div class="card d-none d-md-block"><div class="card-body p-0"><div class="table-responsive">
@@ -35,8 +35,8 @@ const JSAPage = {
       <div class="page-header no-print">
         <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-journal-plus"></i></span><span id="jsaPageTitle">Form JSA Baru</span></h2>
         <div class="d-flex gap-2">
-          <button class="btn btn--outline-secondary btn--sm" onclick="JSAPage.saveAsDraft()"><i class="bi bi-cloud-check"></i> Draft</button>
-          <button class="btn btn--outline-danger btn--sm" onclick="JSAPage.showJSAList()"><i class="bi bi-x-lg"></i> Batal</button>
+          <button class="btn btn--outline-secondary" onclick="JSAPage.saveAsDraft()"><i class="bi bi-cloud-check"></i> Draft</button>
+          <button class="btn btn--outline-danger" onclick="JSAPage.showJSAList()"><i class="bi bi-x-lg"></i> Batal</button>
         </div>
       </div>
       <div class="wizard">
@@ -147,7 +147,7 @@ const JSAPage = {
       return `<div class="section-title">Identifikasi Bahaya</div>
         <div class="d-flex gap-2 mb-3 flex-wrap">
           ${wmOpts?`<div class="d-flex align-items-center gap-2"><label class="form-label mb-0">Import dari Metode Kerja:</label><select class="form-select form-select-sm w-auto" id="selectImportWorkMethod" onchange="JSAPage.importFromWorkMethod(this.value)"><option value="">-- Pilih --</option>${wmOpts}</select></div>`:''}
-          <button class="btn btn--sm btn--primary ms-auto" onclick="JSAPage.addHazardRow()"><i class="bi bi-plus-lg"></i> Tambah Manual</button>
+          <button class="btn btn--primary ms-auto" onclick="JSAPage.addHazardRow()"><i class="bi bi-plus-lg"></i> Tambah Manual</button>
         </div>
         <div class="table-responsive"><table class="hiradc-table">
           <thead><tr><th>No</th><th>Tahapan *</th><th>Bahaya *</th><th>Dampak</th><th>Pengendalian</th><th></th></tr></thead>
@@ -310,16 +310,18 @@ const JSAPage = {
             </div>
           </div></div>`).join('');
 
-        // Event delegation — menggantikan onclick inline di setiap baris
+        // Event delegation — ganti elemen untuk hapus listener lama sebelum pasang baru
         [tableBody, cardList].forEach(container => {
           if (!container) return;
-          container.addEventListener('click', async e => {
+          const fresh = container.cloneNode(true);
+          container.parentNode.replaceChild(fresh, container);
+          fresh.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
             if (action === 'edit')   await JSAPage.editJSA(id);
             if (action === 'delete') await JSAPage.deleteJSA(id);
-          }, { once: true });
+          });
         });
       }
     } catch (err) {
