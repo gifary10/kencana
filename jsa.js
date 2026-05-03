@@ -11,7 +11,7 @@ const JSAPage = {
         <div class="row g-2 p-3">
           <div class="col-8 col-sm-4">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchJSA" placeholder="Cari..." oninput="DB.debounceCall('searchJSA', () => JSAPage.loadJSAList())">
+              <input type="text" class="form-control form-control-sm" id="inputSearchJSA" placeholder="Cari..." oninput="JSAPage.loadJSAList()">
             </div>
           </div>
           <div class="col-4 col-sm-3">
@@ -274,28 +274,73 @@ const JSAPage = {
   },
 
   async loadJSAList() {
-    const [jsaList, projects] = await Promise.all([DataAccess.getAllJSA(), DataAccess.getAllProjects()]);
-    const search=(document.getElementById('inputSearchJSA')?.value||'').toLowerCase();
-    const projId=document.getElementById('selectFilterJSAProject')?.value||'';
-    let list=[...jsaList];
-    if(search) list=list.filter(j=>(j.document_number||'').toLowerCase().includes(search));
-    if(projId) list=list.filter(j=>j.project_id===projId);
-    list.sort((a,b)=>new Date(b.updated_at||b.created_at)-new Date(a.updated_at||a.created_at));
+    try {
+      const [jsaList, projects] = await Promise.all([DataAccess.getAllJSA(), DataAccess.getAllProjects()]);
+      const search = (document.getElementById('inputSearchJSA')?.value || '').toLowerCase();
+      const projId = document.getElementById('selectFilterJSAProject')?.value || '';
+      let list = [...jsaList];
+      if (search) list = list.filter(j => (j.document_number || '').toLowerCase().includes(search));
+      if (projId) list = list.filter(j => j.project_id === projId);
+      list.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-    const tableBody=document.getElementById('jsaTableBody');
-    const cardList=document.getElementById('jsaCardList');
-    if(!list.length){
-      if(tableBody) tableBody.innerHTML='<tr><td colspan="4" class="text-center py-5">Tidak ada JSA</td></tr>';
-      if(cardList) cardList.innerHTML='<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-journal"></i></div><p>Tidak ada JSA</p></div>';
-    } else {
-      if(tableBody) tableBody.innerHTML=list.map(jsa=>{ const p=projects.find(x=>x.id===jsa.project_id); return `<tr><td><strong>${UtilityService.escapeHtml(jsa.document_number)}</strong></td><td>${p?UtilityService.escapeHtml(p.name):'-'}</td><td>${UtilityService.formatDate(jsa.date)}</td><td class="text-center"><button class="btn btn--xs btn--outline-warning me-1" onclick="JSAPage.editJSA('${jsa.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn--xs btn--outline-danger" onclick="JSAPage.deleteJSA('${jsa.id}')"><i class="bi bi-trash"></i></button></td></tr>`; }).join('');
-      if(cardList) cardList.innerHTML=list.map(jsa=>`<div class="card"><div class="card-body"><div class="fw-bold">${UtilityService.escapeHtml(jsa.document_number)}</div><div class="d-flex gap-2 mt-2"><button class="btn btn--xs btn--outline-warning" onclick="JSAPage.editJSA('${jsa.id}')">Edit</button><button class="btn btn--xs btn--outline-danger" onclick="JSAPage.deleteJSA('${jsa.id}')">Hapus</button></div></div></div>`).join('');
+      const tableBody = document.getElementById('jsaTableBody');
+      const cardList  = document.getElementById('jsaCardList');
+      if (!list.length) {
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="4" class="text-center py-5">Tidak ada JSA</td></tr>';
+        if (cardList)  cardList.innerHTML  = '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-journal"></i></div><p>Tidak ada JSA</p></div>';
+      } else {
+        if (tableBody) tableBody.innerHTML = list.map(jsa => {
+          const p = projects.find(x => x.id === jsa.project_id);
+          return `<tr>
+            <td><strong>${UtilityService.escapeHtml(jsa.document_number)}</strong></td>
+            <td>${p ? UtilityService.escapeHtml(p.name) : '-'}</td>
+            <td>${UtilityService.formatDate(jsa.date)}</td>
+            <td class="text-center">
+              <button class="btn btn--xs btn--outline-warning me-1" data-action="edit" data-id="${jsa.id}"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn--xs btn--outline-danger" data-action="delete" data-id="${jsa.id}"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>`;
+        }).join('');
+        if (cardList) cardList.innerHTML = list.map(jsa => `
+          <div class="card"><div class="card-body">
+            <div class="fw-bold">${UtilityService.escapeHtml(jsa.document_number)}</div>
+            <div class="d-flex gap-2 mt-2">
+              <button class="btn btn--xs btn--outline-warning" data-action="edit" data-id="${jsa.id}">Edit</button>
+              <button class="btn btn--xs btn--outline-danger" data-action="delete" data-id="${jsa.id}">Hapus</button>
+            </div>
+          </div></div>`).join('');
+
+        // Event delegation — menggantikan onclick inline di setiap baris
+        [tableBody, cardList].forEach(container => {
+          if (!container) return;
+          container.addEventListener('click', async e => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'edit')   await JSAPage.editJSA(id);
+            if (action === 'delete') await JSAPage.deleteJSA(id);
+          }, { once: true });
+        });
+      }
+    } catch (err) {
+      AppError.handle(err, 'Memuat daftar JSA');
     }
   },
 
-  async editJSA(id) { const j=await DataAccess.getJSAById(id); if(j) this.showJSAForm(j); },
+  async editJSA(id) {
+    try {
+      const j = await DataAccess.getJSAById(id);
+      if (j) this.showJSAForm(j);
+    } catch (err) { AppError.handle(err, 'Membuka JSA'); }
+  },
 
   async deleteJSA(id) {
-    UtilityService.showConfirmDialog('Hapus JSA ini?', async()=>{ await DataAccess.deleteJSA(id); await this.loadJSAList(); UIService.showToast('JSA dihapus.','warning'); });
+    UtilityService.showConfirmDialog('Hapus JSA ini?', async () => {
+      try {
+        await DataAccess.deleteJSA(id);
+        await this.loadJSAList();
+        UIService.showToast('JSA dihapus.', TOAST.WARNING);
+      } catch (err) { AppError.handle(err, 'Menghapus JSA'); }
+    });
   }
 };

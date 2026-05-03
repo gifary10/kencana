@@ -32,7 +32,7 @@ const ProjectPage = {
         <div class="row g-2 p-3">
           <div class="col-9">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchProject" placeholder="Cari proyek..." oninput="DB.debounceCall('searchProject', () => ProjectPage.loadProjectTable())">
+              <input type="text" class="form-control form-control-sm" id="inputSearchProject" placeholder="Cari proyek..." oninput="ProjectPage.loadProjectTable()">
             </div>
           </div>
           <div class="col-2">
@@ -58,61 +58,84 @@ const ProjectPage = {
   async init() { await this.loadProjectTable(); },
 
   async loadProjectTable() {
-    const searchQuery = (document.getElementById('inputSearchProject')?.value || '').toLowerCase();
-    let projects = await DataAccess.getAllProjects();
-    if (searchQuery) projects = projects.filter(p => (p.name||'').toLowerCase().includes(searchQuery) || (p.client||'').toLowerCase().includes(searchQuery));
-    projects = [...projects].reverse();
+    try {
+      const searchQuery = (document.getElementById('inputSearchProject')?.value || '').toLowerCase();
+      let projects = await DataAccess.getAllProjects();
+      if (searchQuery) projects = projects.filter(p =>
+        (p.name||'').toLowerCase().includes(searchQuery) ||
+        (p.client||'').toLowerCase().includes(searchQuery)
+      );
+      projects = [...projects].reverse();
 
-    // OPTIMASI: Dapatkan counts dari server, bukan dari array
-    // Fallback: gunakan count lokal jika server filter tidak tersedia
-    const [allJSA, allWM, allPO] = await Promise.all([
-      DataAccess.getAllJSA(), DataAccess.getAllWorkMethods(), DataAccess.getAllPO()
-    ]);
+      const [allJSA, allWM, allPO] = await Promise.all([
+        DataAccess.getAllJSA(), DataAccess.getAllWorkMethods(), DataAccess.getAllPO()
+      ]);
 
-    const tableBody = document.getElementById('projectTableBody');
-    if (tableBody) {
-      if (!projects.length) {
-        tableBody.innerHTML = `<tr><td colspan="8" class="text-center py-5"><div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div></td></tr>`;
-      } else {
-        tableBody.innerHTML = projects.map(p => {
-          const jc = allJSA.filter(j => j.project_id === p.id).length;
-          const wc = allWM.filter(w => w.project_id === p.id).length;
-          const pc = allPO.filter(o => o.project_id === p.id).length;
-          return `<tr>
-            <td><strong>${UtilityService.escapeHtml(p.name)}</strong></td>
-            <td>${UtilityService.escapeHtml(p.client||'-')}</td>
-            <td>${UtilityService.escapeHtml(p.location||'-')}</td>
-            <td>${UtilityService.escapeHtml(p.pic||'-')}</td>
-            <td><span class="badge bg-info">${jc}</span></td>
-            <td><span class="badge bg-primary">${wc}</span></td>
-            <td><span class="badge bg-indigo">${pc}</span></td>
-            <td class="text-center">
-              <button class="btn btn--xs btn--outline-info me-1" onclick="ProjectPage.showProjectDetail('${p.id}')"><i class="bi bi-eye"></i></button>
-              <button class="btn btn--xs btn--outline-warning me-1" onclick="ProjectPage.editProject('${p.id}')"><i class="bi bi-pencil"></i></button>
-              <button class="btn btn--xs btn--outline-danger" onclick="ProjectPage.deleteProject('${p.id}')"><i class="bi bi-trash"></i></button>
-            </td>
-          </tr>`;
-        }).join('');
+      const tableBody = document.getElementById('projectTableBody');
+      if (tableBody) {
+        if (!projects.length) {
+          tableBody.innerHTML = `<tr><td colspan="8" class="text-center py-5"><div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div></td></tr>`;
+        } else {
+          tableBody.innerHTML = projects.map(p => {
+            const jc = allJSA.filter(j => j.project_id === p.id).length;
+            const wc = allWM.filter(w => w.project_id === p.id).length;
+            const pc = allPO.filter(o => o.project_id === p.id).length;
+            return `<tr>
+              <td><strong>${UtilityService.escapeHtml(p.name)}</strong></td>
+              <td>${UtilityService.escapeHtml(p.client||'-')}</td>
+              <td>${UtilityService.escapeHtml(p.location||'-')}</td>
+              <td>${UtilityService.escapeHtml(p.pic||'-')}</td>
+              <td><span class="badge bg-info">${jc}</span></td>
+              <td><span class="badge bg-primary">${wc}</span></td>
+              <td><span class="badge bg-indigo">${pc}</span></td>
+              <td class="text-center">
+                <button class="btn btn--xs btn--outline-info me-1"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
+                <button class="btn btn--xs btn--outline-warning me-1" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn--xs btn--outline-danger"       data-action="delete" data-id="${p.id}"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>`;
+          }).join('');
+          tableBody.addEventListener('click', async e => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'detail') await ProjectPage.showProjectDetail(id);
+            if (action === 'edit')   await ProjectPage.editProject(id);
+            if (action === 'delete') await ProjectPage.deleteProject(id);
+          }, { once: true });
+        }
       }
-    }
 
-    const cardList = document.getElementById('projectCardList');
-    if (cardList) {
-      cardList.innerHTML = projects.length ? projects.map(p => `
-        <div class="card"><div class="card-body py-3">
-          <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
-            <div class="flex-grow-1 overflow-hidden">
-              <div class="fw-bold" style="font-size:.9rem;">${UtilityService.escapeHtml(p.name)}</div>
-              <div class="text-muted" style="font-size:.76rem;">${UtilityService.escapeHtml(p.client||'')}</div>
+      const cardList = document.getElementById('projectCardList');
+      if (cardList) {
+        cardList.innerHTML = projects.length ? projects.map(p => `
+          <div class="card"><div class="card-body py-3">
+            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+              <div class="flex-grow-1 overflow-hidden">
+                <div class="fw-bold" style="font-size:.9rem;">${UtilityService.escapeHtml(p.name)}</div>
+                <div class="text-muted" style="font-size:.76rem;">${UtilityService.escapeHtml(p.client||'')}</div>
+              </div>
             </div>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn--xs btn--outline-info" onclick="ProjectPage.showProjectDetail('${p.id}')"><i class="bi bi-eye"></i></button>
-            <button class="btn btn--xs btn--outline-warning" onclick="ProjectPage.editProject('${p.id}')"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn--xs btn--outline-danger ms-auto" onclick="ProjectPage.deleteProject('${p.id}')"><i class="bi bi-trash"></i></button>
-          </div>
-        </div></div>`).join('') :
-        '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div>';
+            <div class="d-flex gap-2">
+              <button class="btn btn--xs btn--outline-info"    data-action="detail" data-id="${p.id}"><i class="bi bi-eye"></i></button>
+              <button class="btn btn--xs btn--outline-warning" data-action="edit"   data-id="${p.id}"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn--xs btn--outline-danger ms-auto" data-action="delete" data-id="${p.id}"><i class="bi bi-trash"></i></button>
+            </div>
+          </div></div>`).join('') :
+          '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-x"></i></div><p>Tidak ada proyek ditemukan</p></div>';
+        if (projects.length) {
+          cardList.addEventListener('click', async e => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'detail') await ProjectPage.showProjectDetail(id);
+            if (action === 'edit')   await ProjectPage.editProject(id);
+            if (action === 'delete') await ProjectPage.deleteProject(id);
+          }, { once: true });
+        }
+      }
+    } catch (err) {
+      AppError.handle(err, 'Memuat daftar proyek');
     }
   },
 
@@ -147,11 +170,11 @@ const ProjectPage = {
 
   async saveProject() {
     const name = document.getElementById('inputProjectName').value.trim();
-    if (!name) { UIService.showToast('Nama proyek wajib diisi!', 'warning'); return; }
+    if (!name) { UIService.showToast(ERR.REQUIRED_FIELD('Nama proyek'), TOAST.WARNING); return; }
     const startDate = document.getElementById('inputProjectStartDate').value;
     const endDate   = document.getElementById('inputProjectEndDate').value;
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-      UIService.showToast('Tanggal mulai tidak boleh lebih besar dari tanggal selesai!', 'warning'); return;
+      UIService.showToast('Tanggal mulai tidak boleh lebih besar dari tanggal selesai!', TOAST.WARNING); return;
     }
     const existingId = document.getElementById('inputProjectId').value;
     const isNew = !existingId;
@@ -165,26 +188,31 @@ const ProjectPage = {
       end_date:       endDate,
       contract_value: parseFloat(document.getElementById('inputProjectContractValue').value) || 0
     };
-    await DataAccess.saveProject(data);
-    this.hideProjectForm();
-    await this.loadProjectTable();
-    UIService.showToast('Proyek berhasil disimpan!', 'success');
-    if (isNew) {
-      const all = await DataAccess.getAllProjects();
-      if (all.length === 1) setTimeout(() => UIService.showToast('Proyek dibuat! Sekarang buat Metode Kerja, JSA, atau input Man Power.', 'info'), 800);
-    }
+    try {
+      await DataAccess.saveProject(data);
+      this.hideProjectForm();
+      await this.loadProjectTable();
+      UIService.showToast('Proyek berhasil disimpan!', TOAST.SUCCESS);
+      if (isNew) {
+        const all = await DataAccess.getAllProjects();
+        if (all.length === 1) setTimeout(() => UIService.showToast('Proyek dibuat! Sekarang buat Metode Kerja, JSA, atau input Man Power.', TOAST.INFO), 800);
+      }
+    } catch (err) { AppError.handle(err, 'Menyimpan proyek'); }
   },
 
   async deleteProject(id) {
-    const p = await DataAccess.getProjectById(id);
+    let p;
+    try { p = await DataAccess.getProjectById(id); }
+    catch (err) { AppError.handle(err, 'Memuat proyek'); return; }
     if (!p) return;
     UtilityService.showConfirmDialog(
       `Hapus proyek "${p.name}"? Semua data terkait (JSA, Metode Kerja, Pembelian, Manpower) juga akan dihapus.`,
       async () => {
-        // OPTIMASI: Gunakan DataAccess.deleteProject yang sudah menggunakan batch delete
-        await DataAccess.deleteProject(id);
-        await this.loadProjectTable();
-        UIService.showToast('Proyek beserta data terkait dihapus.', 'warning');
+        try {
+          await DataAccess.deleteProject(id);
+          await this.loadProjectTable();
+          UIService.showToast('Proyek beserta data terkait dihapus.', TOAST.WARNING);
+        } catch (err) { AppError.handle(err, 'Menghapus proyek'); }
       }
     );
   },

@@ -311,15 +311,14 @@ const ManpowerPage = {
 
     const assignCount = {};
     Object.values(this._assignments).forEach(set => {
-      set.forEach(pid => { assignCount[pid] = (assignCount[pid]||0) + 1; });
+      set.forEach(pid => { assignCount[pid] = (assignCount[pid] || 0) + 1; });
     });
 
     tbody.innerHTML = this._personnel.map((p, i) => {
-      const projCount  = assignCount[p.id] || 0;
-      const projBadge  = projCount > 0
+      const projCount = assignCount[p.id] || 0;
+      const projBadge = projCount > 0
         ? '<span class="badge bg-success">' + projCount + ' proyek</span>'
         : '<span class="text-muted" style="font-size:.75rem;">—</span>';
-      const safeName = UtilityService.escapeHtml(p.name).replace(/'/g, "\\'");
       return '<tr>'
         + '<td class="text-center text-muted" style="font-size:.78rem;">' + (i+1) + '</td>'
         + '<td><strong>' + UtilityService.escapeHtml(p.name) + '</strong>'
@@ -328,13 +327,22 @@ const ManpowerPage = {
         + '<td class="text-muted" style="font-size:.78rem;">' + (p.nik ? UtilityService.escapeHtml(p.nik) : '—') + '</td>'
         + '<td>' + (p.birth_date ? this._fmtDate(p.birth_date) : '—') + '</td>'
         + '<td><span class="badge bg-info text-dark">' + this._calcAge(p.birth_date) + '</span></td>'
-        + '<td>' + UtilityService.escapeHtml(p.position||'-') + '</td>'
+        + '<td>' + UtilityService.escapeHtml(p.position || '-') + '</td>'
         + '<td>' + projBadge + '</td>'
         + '<td class="text-center">'
-        + '<button class="btn btn--xs btn--outline-warning me-1" onclick="ManpowerPage.editPersonnel(\'' + p.id + '\')"><i class="bi bi-pencil"></i></button>'
-        + '<button class="btn btn--xs btn--outline-danger" onclick="ManpowerPage.deletePersonnel(\'' + p.id + '\',\'' + safeName + '\')"><i class="bi bi-trash"></i></button>'
+        + '<button class="btn btn--xs btn--outline-warning me-1" data-action="edit"   data-id="' + p.id + '"><i class="bi bi-pencil"></i></button>'
+        + '<button class="btn btn--xs btn--outline-danger"       data-action="delete" data-id="' + p.id + '" data-name="' + UtilityService.escapeHtml(p.name).replace(/"/g, '&quot;') + '"><i class="bi bi-trash"></i></button>'
         + '</td></tr>';
     }).join('');
+
+    // Event delegation — satu listener per tabel, bukan per baris
+    tbody.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id, name } = btn.dataset;
+      if (action === 'edit')   ManpowerPage.editPersonnel(id);
+      if (action === 'delete') ManpowerPage.deletePersonnel(id, name);
+    }, { once: true });
   },
 
   resetPersonnelForm() {
@@ -371,43 +379,42 @@ const ManpowerPage = {
     const address    = document.getElementById('inputPersonnelAddress').value.trim();
     const position   = document.getElementById('inputPersonnelPosition').value.trim();
 
-    if (!name)     { UIService.showToast('Nama wajib diisi!', 'warning'); return; }
-    if (!nik)      { UIService.showToast('NIK wajib diisi!', 'warning'); return; }
-    if (nik.length !== 16 || !/^\d+$/.test(nik)) {
-      UIService.showToast('NIK harus 16 digit angka!', 'warning'); return;
-    }
-    if (!birth_date) { UIService.showToast('Tanggal lahir wajib diisi!', 'warning'); return; }
-    if (!position)   { UIService.showToast('Jabatan wajib diisi!', 'warning'); return; }
+    if (!name)     { UIService.showToast(ERR.REQUIRED_FIELD('Nama'), TOAST.WARNING); return; }
+    if (!nik)      { UIService.showToast(ERR.REQUIRED_FIELD('NIK'), TOAST.WARNING); return; }
+    if (nik.length !== 16 || !/^\d+$/.test(nik)) { UIService.showToast('NIK harus 16 digit angka!', TOAST.WARNING); return; }
+    if (!birth_date) { UIService.showToast(ERR.REQUIRED_FIELD('Tanggal lahir'), TOAST.WARNING); return; }
+    if (!position)   { UIService.showToast(ERR.REQUIRED_FIELD('Jabatan'), TOAST.WARNING); return; }
 
-    // Cek duplikat NIK
     const dupNik = this._personnel.find(p => p.nik === nik && p.id !== id);
-    if (dupNik) { UIService.showToast('NIK sudah terdaftar atas nama ' + dupNik.name + '!', 'danger'); return; }
+    if (dupNik) { UIService.showToast('NIK sudah terdaftar atas nama ' + dupNik.name + '!', TOAST.DANGER); return; }
 
     const data = {
-      id: id || ('per_' + Date.now() + '_' + Math.random().toString(36).substr(2,5)),
+      id: id || ('per_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
       name, nik, birth_date, address, position
     };
 
-    await DataAccess.savePersonnel(data);
-
-    const idx = this._personnel.findIndex(p => p.id === data.id);
-    if (idx >= 0) this._personnel[idx] = data;
-    else          this._personnel.push(data);
-
-    this._renderMasterTable();
-    this.resetPersonnelForm();
-    UIService.showToast('Personel "' + name + '" berhasil disimpan.', 'success');
+    try {
+      await DataAccess.savePersonnel(data);
+      const idx = this._personnel.findIndex(p => p.id === data.id);
+      if (idx >= 0) this._personnel[idx] = data;
+      else          this._personnel.push(data);
+      this._renderMasterTable();
+      this.resetPersonnelForm();
+      UIService.showToast('Personel "' + name + '" berhasil disimpan.', TOAST.SUCCESS);
+    } catch (err) { AppError.handle(err, 'Menyimpan personel'); }
   },
 
   deletePersonnel(id, name) {
     UtilityService.showConfirmDialog(
       'Hapus personel "' + name + '"? Personel ini juga akan dihapus dari semua penugasan proyek.',
       async () => {
-        await DataAccess.deletePersonnel(id);
-        this._personnel = this._personnel.filter(p => p.id !== id);
-        Object.values(this._assignments).forEach(set => set.delete(id));
-        this._renderMasterTable();
-        UIService.showToast('Personel "' + name + '" dihapus.', 'warning');
+        try {
+          await DataAccess.deletePersonnel(id);
+          this._personnel = this._personnel.filter(p => p.id !== id);
+          Object.values(this._assignments).forEach(set => set.delete(id));
+          this._renderMasterTable();
+          UIService.showToast('Personel "' + name + '" dihapus.', TOAST.WARNING);
+        } catch (err) { AppError.handle(err, 'Menghapus personel'); }
       }
     );
   }

@@ -9,7 +9,7 @@ const ProcurementPage = {
         <div class="row g-2 p-3">
           <div class="col-8 col-sm-4">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchPO" placeholder="Cari item..." oninput="DB.debounceCall('searchPO', () => ProcurementPage.loadPOList())">
+              <input type="text" class="form-control form-control-sm" id="inputSearchPO" placeholder="Cari item..." oninput="ProcurementPage.loadPOList()">
             </div>
           </div>
           <div class="col-4 col-sm-3">
@@ -167,19 +167,16 @@ const ProcurementPage = {
 
   async finishAllItems() {
     const projectId = document.getElementById('selectPOProject')?.value;
-    if (!projectId) { UIService.showToast('Pilih proyek terlebih dahulu!','warning'); return; }
-    const items = this.collectItems().filter(i=>i.material_name);
-    if (!items.length) { UIService.showToast('Minimal 1 item dengan nama material!','warning'); return; }
+    if (!projectId) { UIService.showToast('Pilih proyek terlebih dahulu!', TOAST.WARNING); return; }
+    const items = this.collectItems().filter(i => i.material_name);
+    if (!items.length) { UIService.showToast('Minimal 1 item dengan nama material!', TOAST.WARNING); return; }
     for (const item of items) {
-      if (item.quantity <= 0) { UIService.showToast(`"${item.material_name}": Qty harus > 0!`,'warning'); return; }
+      if (item.quantity <= 0) { UIService.showToast(`"${item.material_name}": Qty harus > 0!`, TOAST.WARNING); return; }
     }
-    
     const poDate = document.getElementById('inputPODate')?.value || new Date().toISOString().split('T')[0];
     const now = new Date().toISOString();
-    
-    // OPTIMASI: Gunakan batch save untuk semua item sekaligus
     const poArray = items.map(item => ({
-      id: 'po_' + Date.now() + '_' + Math.random().toString(36).substr(2,9),
+      id: 'po_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
       project_id: projectId,
       material_name: item.material_name,
       specification: item.specification,
@@ -190,39 +187,104 @@ const ProcurementPage = {
       date: poDate,
       created_at: now
     }));
-    
-    await DataAccess.saveMultiplePO(poArray);
-    UIService.showToast(`${items.length} item berhasil disimpan!`,'success');
-    setTimeout(()=>this.showPOList(), 1200);
+    try {
+      await DataAccess.saveMultiplePO(poArray);
+      UIService.showToast(`${items.length} item berhasil disimpan!`, TOAST.SUCCESS);
+      setTimeout(() => this.showPOList(), 1200);
+    } catch (err) { AppError.handle(err, 'Menyimpan item pembelian'); }
   },
 
   async loadPOList() {
-    const [poList, projects] = await Promise.all([DataAccess.getAllPO(), DataAccess.getAllProjects()]);
-    const search=(document.getElementById('inputSearchPO')?.value||'').toLowerCase();
-    const projId=document.getElementById('selectFilterPOProject')?.value||'';
-    let list=[...poList];
-    if(search) list=list.filter(po=>(po.material_name||'').toLowerCase().includes(search)||(po.specification||'').toLowerCase().includes(search));
-    if(projId) list=list.filter(po=>po.project_id===projId);
-    list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+    try {
+      const [poList, projects] = await Promise.all([DataAccess.getAllPO(), DataAccess.getAllProjects()]);
+      const search = (document.getElementById('inputSearchPO')?.value || '').toLowerCase();
+      const projId = document.getElementById('selectFilterPOProject')?.value || '';
+      let list = [...poList];
+      if (search) list = list.filter(po =>
+        (po.material_name || '').toLowerCase().includes(search) ||
+        (po.specification || '').toLowerCase().includes(search)
+      );
+      if (projId) list = list.filter(po => po.project_id === projId);
+      list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
-    const tableBody=document.getElementById('poTableBody');
-    const cardList=document.getElementById('poCardList');
+      const tableBody = document.getElementById('poTableBody');
+      const cardList  = document.getElementById('poCardList');
 
-    if(!list.length){
-      if(tableBody) tableBody.innerHTML='<tr><td colspan="9" class="text-center py-5">Tidak ada item pembelian</td></tr>';
-      if(cardList) cardList.innerHTML='<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-cart-x"></i></div><p>Tidak ada item pembelian</p></div>';
-    } else {
-      if(tableBody) tableBody.innerHTML=list.map((po,i)=>{ const p=projects.find(x=>x.id===po.project_id); return `<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(p?.name||'-')}</td><td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td><td>${UtilityService.escapeHtml(po.specification||'-')}</td><td class="text-center">${po.quantity||0}</td><td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td><td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td><td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td><td class="text-center"><button class="btn btn--xs btn--outline-warning me-1" onclick="ProcurementPage.editPO('${po.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn--xs btn--outline-danger" onclick="ProcurementPage.deletePOConfirm('${po.id}')"><i class="bi bi-trash"></i></button></td></tr>`; }).join('');
-      if(cardList) cardList.innerHTML=list.map(po=>{ const p=projects.find(x=>x.id===po.project_id); return `<div class="card"><div class="card-body py-3"><div class="fw-bold">${UtilityService.escapeHtml(po.material_name||'-')}</div><div style="font-size:.7rem;">${UtilityService.escapeHtml(p?.name||'-')} | ${UtilityService.escapeHtml(po.specification||'-')}</div><div style="font-size:.7rem;">${po.quantity||0} ${UtilityService.escapeHtml(po.unit||'')} | ${UtilityService.formatCurrency(po.unit_price)}</div><div class="fw-semibold text-success">${UtilityService.formatCurrency(po.total_price)}</div><div class="d-flex gap-2 mt-2"><button class="btn btn--xs btn--outline-warning" onclick="ProcurementPage.editPO('${po.id}')">Edit</button><button class="btn btn--xs btn--outline-danger" onclick="ProcurementPage.deletePOConfirm('${po.id}')">Hapus</button></div></div></div>`; }).join('');
+      if (!list.length) {
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-5">Tidak ada item pembelian</td></tr>';
+        if (cardList)  cardList.innerHTML  = '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-cart-x"></i></div><p>Tidak ada item pembelian</p></div>';
+      } else {
+        if (tableBody) {
+          tableBody.innerHTML = list.map((po, i) => {
+            const p = projects.find(x => x.id === po.project_id);
+            return `<tr>
+              <td class="text-center">${i+1}</td>
+              <td>${UtilityService.escapeHtml(p?.name || '-')}</td>
+              <td><strong>${UtilityService.escapeHtml(po.material_name || '-')}</strong></td>
+              <td>${UtilityService.escapeHtml(po.specification || '-')}</td>
+              <td class="text-center">${po.quantity || 0}</td>
+              <td class="text-center">${UtilityService.escapeHtml(po.unit || '-')}</td>
+              <td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td>
+              <td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td>
+              <td class="text-center">
+                <button class="btn btn--xs btn--outline-warning me-1" data-action="edit"   data-id="${po.id}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn--xs btn--outline-danger"       data-action="delete" data-id="${po.id}"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>`;
+          }).join('');
+          tableBody.addEventListener('click', async e => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'edit')   await ProcurementPage.editPO(id);
+            if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
+          }, { once: true });
+        }
+        if (cardList) {
+          cardList.innerHTML = list.map(po => {
+            const p = projects.find(x => x.id === po.project_id);
+            return `<div class="card"><div class="card-body py-3">
+              <div class="fw-bold">${UtilityService.escapeHtml(po.material_name || '-')}</div>
+              <div style="font-size:.7rem;">${UtilityService.escapeHtml(p?.name || '-')} | ${UtilityService.escapeHtml(po.specification || '-')}</div>
+              <div style="font-size:.7rem;">${po.quantity || 0} ${UtilityService.escapeHtml(po.unit || '')} | ${UtilityService.formatCurrency(po.unit_price)}</div>
+              <div class="fw-semibold text-success">${UtilityService.formatCurrency(po.total_price)}</div>
+              <div class="d-flex gap-2 mt-2">
+                <button class="btn btn--xs btn--outline-warning" data-action="edit"   data-id="${po.id}">Edit</button>
+                <button class="btn btn--xs btn--outline-danger"  data-action="delete" data-id="${po.id}">Hapus</button>
+              </div>
+            </div></div>`;
+          }).join('');
+          cardList.addEventListener('click', async e => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'edit')   await ProcurementPage.editPO(id);
+            if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
+          }, { once: true });
+        }
+      }
+    } catch (err) {
+      AppError.handle(err, 'Memuat daftar pembelian');
     }
   },
 
   async editPO(id) {
-    const po=await DataAccess.getPOById(id);
-    if(po){ this._currentItems=[{ id:po.id, material_name:po.material_name||'', specification:po.specification||'', quantity:po.quantity||1, unit:po.unit||'', unit_price:po.unit_price||0, total_price:po.total_price||0, created_at:po.created_at }]; this.showPOForm(po); }
+    try {
+      const po = await DataAccess.getPOById(id);
+      if (po) {
+        this._currentItems = [{ id: po.id, material_name: po.material_name || '', specification: po.specification || '', quantity: po.quantity || 1, unit: po.unit || '', unit_price: po.unit_price || 0, total_price: po.total_price || 0, created_at: po.created_at }];
+        this.showPOForm(po);
+      }
+    } catch (err) { AppError.handle(err, 'Membuka item pembelian'); }
   },
 
   async deletePOConfirm(id) {
-    UtilityService.showConfirmDialog('Hapus item ini?', async()=>{ await DataAccess.deletePO(id); await this.loadPOList(); UIService.showToast('Item dihapus.','warning'); });
+    UtilityService.showConfirmDialog('Hapus item ini?', async () => {
+      try {
+        await DataAccess.deletePO(id);
+        await this.loadPOList();
+        UIService.showToast('Item dihapus.', TOAST.WARNING);
+      } catch (err) { AppError.handle(err, 'Menghapus item pembelian'); }
+    });
   }
 };

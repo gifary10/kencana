@@ -14,7 +14,7 @@ const WorkMethodPage = {
         <div class="row g-2 p-3">
           <div class="col-8 col-sm-4">
             <div class="input-search"><i class="bi bi-search"></i>
-              <input type="text" class="form-control form-control-sm" id="inputSearchWorkMethod" placeholder="Cari..." oninput="DB.debounceCall('searchWorkMethod', () => WorkMethodPage.loadWorkMethodList())">
+              <input type="text" class="form-control form-control-sm" id="inputSearchWorkMethod" placeholder="Cari..." oninput="WorkMethodPage.loadWorkMethodList()">
             </div>
           </div>
           <div class="col-4 col-sm-3">
@@ -214,29 +214,76 @@ const WorkMethodPage = {
   },
 
   async loadWorkMethodList() {
-    const [wms, projects] = await Promise.all([DataAccess.getAllWorkMethods(), DataAccess.getAllProjects()]);
-    const search=(document.getElementById('inputSearchWorkMethod')?.value||'').toLowerCase();
-    const projId=document.getElementById('selectFilterWorkMethodProject')?.value||'';
-    let list=[...wms];
-    if(search) list=list.filter(w=>(w.document_number||'').toLowerCase().includes(search));
-    if(projId) list=list.filter(w=>w.project_id===projId);
-    list.sort((a,b)=>new Date(b.updated_at||b.created_at)-new Date(a.updated_at||a.created_at));
+    try {
+      const [wms, projects] = await Promise.all([DataAccess.getAllWorkMethods(), DataAccess.getAllProjects()]);
+      const search = (document.getElementById('inputSearchWorkMethod')?.value || '').toLowerCase();
+      const projId = document.getElementById('selectFilterWorkMethodProject')?.value || '';
+      let list = [...wms];
+      if (search) list = list.filter(w => (w.document_number || '').toLowerCase().includes(search));
+      if (projId) list = list.filter(w => w.project_id === projId);
+      list.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-    const tableBody=document.getElementById('workMethodTableBody');
-    const cardList=document.getElementById('workMethodCardList');
+      const tableBody = document.getElementById('workMethodTableBody');
+      const cardList  = document.getElementById('workMethodCardList');
 
-    if(!list.length){
-      if(tableBody) tableBody.innerHTML='<tr><td colspan="3" class="text-center py-5">Tidak ada metode kerja</td></tr>';
-      if(cardList) cardList.innerHTML='<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-diagram-3"></i></div><p>Tidak ada metode kerja</p></div>';
-    } else {
-      if(tableBody) tableBody.innerHTML=list.map(wm=>{ const p=projects.find(x=>x.id===wm.project_id); return `<tr><td><strong>${UtilityService.escapeHtml(wm.document_number)}</strong></td><td>${p?UtilityService.escapeHtml(p.name):'-'}</td><td class="text-center"><button class="btn btn--xs btn--outline-warning me-1" onclick="WorkMethodPage.editWorkMethod('${wm.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn--xs btn--outline-danger" onclick="WorkMethodPage.deleteWorkMethod('${wm.id}')"><i class="bi bi-trash"></i></button></td></tr>`; }).join('');
-      if(cardList) cardList.innerHTML=list.map(wm=>{ const p=projects.find(x=>x.id===wm.project_id); return `<div class="card"><div class="card-body py-3"><div class="fw-bold">${UtilityService.escapeHtml(wm.document_number)}</div><div style="font-size:.7rem;">${p?UtilityService.escapeHtml(p.name):'-'}</div><div class="d-flex gap-2 mt-2"><button class="btn btn--xs btn--outline-warning" onclick="WorkMethodPage.editWorkMethod('${wm.id}')">Edit</button><button class="btn btn--xs btn--outline-danger" onclick="WorkMethodPage.deleteWorkMethod('${wm.id}')">Hapus</button></div></div></div>`; }).join('');
+      if (!list.length) {
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5">Tidak ada metode kerja</td></tr>';
+        if (cardList)  cardList.innerHTML  = '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-diagram-3"></i></div><p>Tidak ada metode kerja</p></div>';
+      } else {
+        if (tableBody) tableBody.innerHTML = list.map(wm => {
+          const p = projects.find(x => x.id === wm.project_id);
+          return `<tr>
+            <td><strong>${UtilityService.escapeHtml(wm.document_number)}</strong></td>
+            <td>${p ? UtilityService.escapeHtml(p.name) : '-'}</td>
+            <td class="text-center">
+              <button class="btn btn--xs btn--outline-warning me-1" data-action="edit" data-id="${wm.id}"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn--xs btn--outline-danger" data-action="delete" data-id="${wm.id}"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>`;
+        }).join('');
+        if (cardList) cardList.innerHTML = list.map(wm => {
+          const p = projects.find(x => x.id === wm.project_id);
+          return `<div class="card"><div class="card-body py-3">
+            <div class="fw-bold">${UtilityService.escapeHtml(wm.document_number)}</div>
+            <div style="font-size:.7rem;">${p ? UtilityService.escapeHtml(p.name) : '-'}</div>
+            <div class="d-flex gap-2 mt-2">
+              <button class="btn btn--xs btn--outline-warning" data-action="edit" data-id="${wm.id}">Edit</button>
+              <button class="btn btn--xs btn--outline-danger" data-action="delete" data-id="${wm.id}">Hapus</button>
+            </div>
+          </div></div>`;
+        }).join('');
+
+        // Event delegation — ganti onclick inline per baris
+        [tableBody, cardList].forEach(container => {
+          if (!container) return;
+          container.addEventListener('click', async e => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const { action, id } = btn.dataset;
+            if (action === 'edit')   await WorkMethodPage.editWorkMethod(id);
+            if (action === 'delete') await WorkMethodPage.deleteWorkMethod(id);
+          }, { once: true });
+        });
+      }
+    } catch (err) {
+      AppError.handle(err, 'Memuat daftar Metode Kerja');
     }
   },
 
-  async editWorkMethod(id) { const w=await DataAccess.getWorkMethodById(id); if(w) this.showWorkMethodForm(w); },
+  async editWorkMethod(id) {
+    try {
+      const w = await DataAccess.getWorkMethodById(id);
+      if (w) this.showWorkMethodForm(w);
+    } catch (err) { AppError.handle(err, 'Membuka Metode Kerja'); }
+  },
 
   async deleteWorkMethod(id) {
-    UtilityService.showConfirmDialog('Hapus metode kerja ini?', async()=>{ await DataAccess.deleteWorkMethod(id); await this.loadWorkMethodList(); UIService.showToast('Metode kerja dihapus.','warning'); });
+    UtilityService.showConfirmDialog('Hapus metode kerja ini?', async () => {
+      try {
+        await DataAccess.deleteWorkMethod(id);
+        await this.loadWorkMethodList();
+        UIService.showToast('Metode kerja dihapus.', TOAST.WARNING);
+      } catch (err) { AppError.handle(err, 'Menghapus Metode Kerja'); }
+    });
   }
 };

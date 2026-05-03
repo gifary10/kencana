@@ -232,33 +232,33 @@ const AppAuth = {
     
     const roleColors = { admin:'primary', hse:'success', pembeli:'warning' };
 
-    return `<div class="page-header no-print">
+    const html = `<div class="page-header no-print">
       <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-people-fill"></i></span>Manajemen Akun</h2>
       <button class="btn btn--primary btn--lg" onclick="AppAuth.showAddAccountForm()"><i class="bi bi-person-plus"></i> Tambah Akun</button>
     </div>
-    <div id="addAccountFormCard" class="card" style="display:none;">
+    <div id="${EL.ADD_ACCOUNT_FORM_CARD}" class="card" style="display:none;">
       <div class="card-header"><i class="bi bi-person-plus"></i> Tambah / Edit Akun</div>
       <div class="card-body">
         <div class="row g-3">
-          <input type="hidden" id="editAccountUsername" value="">
-          <div class="col-sm-6"><label class="form-label">Username <span class="text-danger">*</span></label><input type="text" class="form-control" id="inputAccountUsername" placeholder="username" required></div>
-          <div class="col-sm-6"><label class="form-label">Password <span class="text-danger">*</span></label><input type="password" class="form-control" id="inputAccountPassword" placeholder="password" required></div>
-          <div class="col-sm-6"><label class="form-label">Nama <span class="text-danger">*</span></label><input type="text" class="form-control" id="inputAccountName" placeholder="Nama lengkap" required></div>
+          <input type="hidden" id="${EL.EDIT_ACCOUNT_USERNAME}" value="">
+          <div class="col-sm-6"><label class="form-label">Username <span class="text-danger">*</span></label><input type="text" class="form-control" id="${EL.INPUT_ACCOUNT_USERNAME}" placeholder="username" required></div>
+          <div class="col-sm-6"><label class="form-label">Password <span class="text-danger">*</span></label><input type="password" class="form-control" id="${EL.INPUT_ACCOUNT_PASSWORD}" placeholder="password" required></div>
+          <div class="col-sm-6"><label class="form-label">Nama <span class="text-danger">*</span></label><input type="text" class="form-control" id="${EL.INPUT_ACCOUNT_NAME}" placeholder="Nama lengkap" required></div>
           <div class="col-sm-6"><label class="form-label">Role</label>
-            <select class="form-select" id="inputAccountRole">
-              <option value="admin">Admin — Akses Penuh</option>
-              <option value="hse">HSE — Metode, JSA, Man Power</option>
-              <option value="pembeli">Pembeli — Pembelian</option>
+            <select class="form-select" id="${EL.INPUT_ACCOUNT_ROLE}">
+              <option value="${ROLE_KEYS.ADMIN}">Admin — Akses Penuh</option>
+              <option value="${ROLE_KEYS.HSE}">HSE — Metode, JSA, Man Power</option>
+              <option value="${ROLE_KEYS.PEMBELI}">Pembeli — Pembelian</option>
             </select>
           </div>
         </div>
         <div class="d-flex gap-2 mt-3">
           <button class="btn btn--primary" onclick="AppAuth.saveAccount()"><i class="bi bi-save"></i> Simpan</button>
-          <button class="btn btn--outline-secondary" onclick="document.getElementById('addAccountFormCard').style.display='none'">Batal</button>
+          <button class="btn btn--outline-secondary" onclick="document.getElementById('${EL.ADD_ACCOUNT_FORM_CARD}').style.display='none'">Batal</button>
         </div>
       </div>
     </div>
-    <div class="card" id="accountTableCard"><div class="card-body p-0"><div class="table-responsive">
+    <div class="card" id="${EL.ACCOUNT_TABLE_CARD}"><div class="card-body p-0"><div class="table-responsive">
       <table class="table table--hover mb-0">
         <thead><tr><th class="col-width-40">No</th><th>Username</th><th>Nama</th><th>Role</th><th class="text-center">Aksi</th></tr></thead>
         <tbody>
@@ -278,98 +278,106 @@ const AppAuth = {
           }).join('')}
         </tbody>
       </table>
-    </div></div></div>
-    <script>
-    (function(){
-      const card = document.getElementById('accountTableCard');
-      if (!card) return;
-      card.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        const action = btn.getAttribute('data-action');
-        const username = btn.getAttribute('data-username');
-        if (action === 'edit-account') AppAuth.editAccount(username);
-        if (action === 'delete-account') AppAuth.deleteAccount(username);
-      });
-    })();
-    </script>`;
+    </div></div></div>`;
+
+    // Render ke DOM dulu, baru pasang event listener
+    // — menggantikan <script> inline yang tidak andal dan tidak aman
+    const mainContent = document.getElementById(EL.APP_MAIN_CONTENT);
+    if (mainContent) {
+      mainContent.innerHTML = html;
+      // Pasang event delegation setelah elemen ada di DOM
+      const card = document.getElementById(EL.ACCOUNT_TABLE_CARD);
+      if (card) {
+        card.addEventListener('click', function (e) {
+          const btn      = e.target.closest('[data-action]');
+          if (!btn) return;
+          const action   = btn.getAttribute('data-action');
+          const username = btn.getAttribute('data-username');
+          if (action === 'edit-account')   AppAuth.editAccount(username);
+          if (action === 'delete-account') AppAuth.deleteAccount(username);
+        });
+      }
+      return html; // kembalikan html agar backward-compatible dengan caller
+    }
+    return html;
   },
 
   showAddAccountForm() {
-    document.getElementById('editAccountUsername').value = '';
-    document.getElementById('inputAccountUsername').value = '';
-    document.getElementById('inputAccountPassword').value = '';
-    document.getElementById('inputAccountName').value = '';
-    document.getElementById('inputAccountRole').value = 'admin';
-    const f = document.getElementById('addAccountFormCard');
+    document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = '';
+    document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = '';
+    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = '';
+    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = '';
+    document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = ROLE_KEYS.ADMIN;
+    const f = document.getElementById(EL.ADD_ACCOUNT_FORM_CARD);
     f.style.display = 'block';
-    setTimeout(() => f.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+    setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   },
 
   async editAccount(username) {
-    const accounts = await DataAccess.getAccounts();
-    if (!accounts || accounts.length === 0) {
-      UIService.showToast('Tidak ada data akun.', 'warning');
-      return;
-    }
+    let accounts = [];
+    try { accounts = await DataAccess.getAccounts(); }
+    catch (err) { AppError.handle(err, 'Memuat data akun'); return; }
+
     const acc = accounts.find(a => a.username === username);
     if (!acc) return;
-    document.getElementById('editAccountUsername').value   = acc.username;
-    document.getElementById('inputAccountUsername').value  = acc.username;
-    document.getElementById('inputAccountPassword').value  = acc.password;
-    document.getElementById('inputAccountName').value      = acc.name || '';
-    document.getElementById('inputAccountRole').value      = acc.role;
-    const f = document.getElementById('addAccountFormCard');
+    document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = acc.username;
+    document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = acc.username;
+    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = acc.password;
+    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = acc.name || '';
+    document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = acc.role;
+    const f = document.getElementById(EL.ADD_ACCOUNT_FORM_CARD);
     f.style.display = 'block';
-    setTimeout(() => f.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+    setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   },
 
   async saveAccount() {
-    const username   = document.getElementById('inputAccountUsername').value.trim();
-    const password   = document.getElementById('inputAccountPassword').value.trim();
-    const name       = document.getElementById('inputAccountName').value.trim();
-    const role       = document.getElementById('inputAccountRole').value;
-    const editOldUser = document.getElementById('editAccountUsername').value;
+    const username    = document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value.trim();
+    const password    = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value.trim();
+    const name        = document.getElementById(EL.INPUT_ACCOUNT_NAME).value.trim();
+    const role        = document.getElementById(EL.INPUT_ACCOUNT_ROLE).value;
+    const editOldUser = document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value;
 
-    if (!username || !password || !name) { UIService.showToast('Username, password, dan nama wajib diisi!','warning'); return; }
-    if (username.length < 3) { UIService.showToast('Username minimal 3 karakter!','warning'); return; }
+    if (!username || !password || !name) { UIService.showToast(ERR.REQUIRED_FIELD('Username, password, dan nama'), TOAST.WARNING); return; }
+    if (username.length < 3) { UIService.showToast(ERR.MIN_LENGTH('Username', 3), TOAST.WARNING); return; }
 
     let accounts = [];
-    try {
-      accounts = await DataAccess.getAccounts();
-    } catch(err) {
-      accounts = [];
-    }
-    
+    try { accounts = await DataAccess.getAccounts(); }
+    catch (err) { accounts = []; }
+
     const dup = accounts.find(a => a.username.toLowerCase() === username.toLowerCase());
-    if (dup && dup.username !== editOldUser) { UIService.showToast('Username sudah digunakan!','warning'); return; }
+    if (dup && dup.username !== editOldUser) { UIService.showToast(ERR.DUPLICATE('Username'), TOAST.WARNING); return; }
 
-    if (editOldUser && editOldUser !== username) {
-      await DataAccess.deleteAccount(editOldUser);
+    try {
+      if (editOldUser && editOldUser !== username) await DataAccess.deleteAccount(editOldUser);
+      await DataAccess.saveAccount({ username, password, role, name });
+      UIService.showToast('Akun berhasil disimpan!', TOAST.SUCCESS);
+      document.getElementById(EL.ADD_ACCOUNT_FORM_CARD).style.display = 'none';
+      await AppAuth.renderAccountManager();
+    } catch (err) {
+      AppError.handle(err, 'Menyimpan akun');
     }
-
-    await DataAccess.saveAccount({ username, password, role, name });
-    UIService.showToast('Akun berhasil disimpan!', 'success');
-    document.getElementById('addAccountFormCard').style.display = 'none';
-    document.getElementById('appMainContent').innerHTML = await AppAuth.renderAccountManager();
   },
 
   async deleteAccount(username) {
     const session = AuthService.getCurrentUser();
-    if (session && session.username === username) { UIService.showToast('Tidak dapat menghapus akun yang sedang aktif!','danger'); return; }
-    
-    let accounts = [];
-    try {
-      accounts = await DataAccess.getAccounts();
-    } catch(err) {
-      accounts = [];
+    if (session && session.username === username) {
+      UIService.showToast('Tidak dapat menghapus akun yang sedang aktif!', TOAST.DANGER); return;
     }
-    
-    if (accounts.length <= 1) { UIService.showToast('Minimal harus ada 1 akun!','danger'); return; }
+
+    let accounts = [];
+    try { accounts = await DataAccess.getAccounts(); }
+    catch (err) { accounts = []; }
+
+    if (accounts.length <= 1) { UIService.showToast('Minimal harus ada 1 akun!', TOAST.DANGER); return; }
+
     UtilityService.showConfirmDialog(`Hapus akun "${username}"?`, async () => {
-      await DataAccess.deleteAccount(username);
-      UIService.showToast('Akun dihapus.','warning');
-      document.getElementById('appMainContent').innerHTML = await AppAuth.renderAccountManager();
+      try {
+        await DataAccess.deleteAccount(username);
+        UIService.showToast('Akun dihapus.', TOAST.WARNING);
+        await AppAuth.renderAccountManager();
+      } catch (err) {
+        AppError.handle(err, 'Menghapus akun');
+      }
     });
   }
 };
