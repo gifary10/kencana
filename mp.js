@@ -338,8 +338,10 @@ const ManpowerPage = {
         + '</td></tr>';
     }).join('');
 
-    // Event delegation — satu listener per tabel, bukan per baris
-    tbody.addEventListener('click', e => {
+    // Event delegation — cloneNode untuk hapus semua listener lama sebelum pasang baru
+    const freshTbody = tbody.cloneNode(true);
+    tbody.parentNode.replaceChild(freshTbody, tbody);
+    freshTbody.addEventListener('click', e => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
       const { action, id, name } = btn.dataset;

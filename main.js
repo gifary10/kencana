@@ -232,7 +232,7 @@ const UIService = {
 
     if (route === ROUTES.AKUN) {
       if (typeof AppAuth !== 'undefined') {
-        mainContent.innerHTML = await AppAuth.renderAccountManager();
+        await AppAuth.renderAccountManager();
         document.querySelectorAll('.nav-item[data-route]').forEach(n => n.classList.toggle('active', n.dataset.route === ROUTES.AKUN));
       }
       return;

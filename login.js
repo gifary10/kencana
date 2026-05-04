@@ -113,7 +113,7 @@ const LoginPage = {
     const password = document.getElementById('loginPassword')?.value || '';
     const errorBox = document.getElementById('loginError');
     const errorMsg = document.getElementById('loginErrorMsg');
-    const btn = document.getElementById('loginBtn');
+    const btn      = document.getElementById('loginBtn');
 
     if (!username || !password) {
       errorMsg.textContent = 'Username dan password wajib diisi.';
@@ -122,43 +122,36 @@ const LoginPage = {
 
     const spinner = document.getElementById('navbarLoadingSpinner');
     if (spinner) spinner.style.display = 'inline-block';
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memverifikasi…';
+    btn.disabled    = true;
+    btn.innerHTML   = '<i class="bi bi-hourglass-split"></i> Memverifikasi…';
 
     try {
-      const accounts = await DataAccess.getAccounts();
-      
-      if (!accounts || accounts.length === 0) {
-        errorMsg.textContent = 'Tidak ada akun terdaftar. Hubungi administrator.';
-        errorBox.style.display = 'flex';
-        if (spinner) spinner.style.display = 'none';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Masuk';
-        return;
-      }
+      // Validasi dilakukan di server — browser tidak pernah menerima data akun
+      const res  = await fetch(window.GS_API_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body:    JSON.stringify({ action: 'login', username, password })
+      });
+      const json = await res.json();
 
-      const account = accounts.find(a => a.username?.toLowerCase() === username.toLowerCase() && a.password === password);
-      if (!account) {
-        errorMsg.textContent = 'Username atau password salah.';
+      if (!json.ok) {
+        errorMsg.textContent = json.error || 'Username atau password salah.';
         errorBox.style.display = 'flex';
         document.getElementById('loginPassword').value = '';
         document.getElementById('loginPassword').focus();
-        if (spinner) spinner.style.display = 'none';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Masuk';
         return;
       }
 
-      AuthService.setSession({ username: account.username, name: account.name, role: account.role });
+      AuthService.setSession(json.session);
       errorBox.style.display = 'none';
-      if (spinner) spinner.style.display = 'none';
       this.hide();
-      AppAuth.onLoginSuccess(account.role);
-    } catch(err) {
-      errorMsg.textContent = 'Gagal terhubung ke server: ' + err.message;
+      AppAuth.onLoginSuccess(json.session.role);
+
+    } catch (err) {
+      errorMsg.textContent = 'Gagal terhubung ke server. Periksa koneksi internet Anda.';
       errorBox.style.display = 'flex';
-      if (spinner) spinner.style.display = 'none';
     } finally {
+      if (spinner) spinner.style.display = 'none';
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Masuk'; }
     }
   },
@@ -230,7 +223,7 @@ const AppAuth = {
     } catch(err) {
       console.error('[AppAuth] Gagal memuat akun:', err);
     }
-    
+
     const roleColors = { admin:'primary', hse:'success', pembeli:'warning' };
 
     const html = `<div class="page-header no-print">
@@ -262,7 +255,7 @@ const AppAuth = {
     <div class="card" id="${EL.ACCOUNT_TABLE_CARD}"><div class="card-body p-0"><div class="table-responsive">
       <table class="table table--hover mb-0">
         <thead><tr><th class="col-width-40">No</th><th>Username</th><th>Nama</th><th>Role</th><th class="text-center">Aksi</th></tr></thead>
-        <tbody>
+        <tbody id="accountTableBody">
           ${accounts.length === 0 ? '<tr><td colspan="5" class="text-center py-4 text-muted">Belum ada akun. Klik "Tambah Akun" untuk menambahkan.</td></tr>' : ''}
           ${accounts.map((acc, i) => {
             const rc = ROLES[acc.role];
@@ -282,50 +275,93 @@ const AppAuth = {
     </div></div></div>`;
 
     const mainContent = document.getElementById(EL.APP_MAIN_CONTENT);
-    if (mainContent) {
-      mainContent.innerHTML = html;
-      const card = document.getElementById(EL.ACCOUNT_TABLE_CARD);
-      if (card) {
-        card.addEventListener('click', function (e) {
-          const btn      = e.target.closest('[data-action]');
-          if (!btn) return;
-          const action   = btn.getAttribute('data-action');
-          const username = btn.getAttribute('data-username');
-          if (action === 'edit-account')   AppAuth.editAccount(username);
-          if (action === 'delete-account') AppAuth.deleteAccount(username);
-        });
-      }
-      return html;
+    if (!mainContent) return;
+
+    // Tulis HTML ke DOM
+    mainContent.innerHTML = html;
+
+    // Pasang listener SETELAH innerHTML selesai — pada tbody yang baru saja dibuat
+    // Tidak perlu cloneNode karena node ini baru dibuat, belum pernah punya listener
+    const tbody = document.getElementById('accountTableBody');
+    if (tbody) {
+      tbody.addEventListener('click', function(e) {
+        const btn      = e.target.closest('[data-action]');
+        if (!btn) return;
+        const action   = btn.getAttribute('data-action');
+        const username = btn.getAttribute('data-username');
+        if (action === 'edit-account')   AppAuth.editAccount(username);
+        if (action === 'delete-account') AppAuth.deleteAccount(username);
+      });
     }
-    return html;
   },
 
   showAddAccountForm() {
     document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = '';
     document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = '';
-    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = '';
     document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = '';
     document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = ROLE_KEYS.ADMIN;
+
+    // Reset password field — wajib untuk akun baru
+    const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
+    if (pwInput) {
+      pwInput.value       = '';
+      pwInput.placeholder = 'password';
+      pwInput.required    = true;
+    }
+
     const f = document.getElementById(EL.ADD_ACCOUNT_FORM_CARD);
-    f.style.display = 'block';
-    setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    if (f) {
+      f.style.display = 'block';
+      setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    }
   },
 
   async editAccount(username) {
+    // Ambil data yang tersedia dari DOM terlebih dulu (nama dari tabel)
+    // untuk menghindari fetch ulang yang tidak perlu
+    let nameFromDOM = '';
+    let roleFromDOM = '';
+    const tbody = document.getElementById('accountTableBody');
+    if (tbody) {
+      const rows = tbody.querySelectorAll('tr');
+      rows.forEach(row => {
+        const editBtn = row.querySelector('[data-action="edit-account"]');
+        if (editBtn && editBtn.getAttribute('data-username') === username) {
+          const cells = row.querySelectorAll('td');
+          if (cells[2]) nameFromDOM = cells[2].textContent.trim();
+        }
+      });
+    }
+
+    // Tetap fetch untuk mendapatkan role yang akurat (tidak ter-expose di DOM sebagai value)
     let accounts = [];
     try { accounts = await DataAccess.getAccounts(); }
     catch (err) { AppError.handle(err, 'Memuat data akun'); return; }
 
     const acc = accounts.find(a => a.username === username);
-    if (!acc) return;
+    if (!acc) {
+      UIService.showToast('Akun tidak ditemukan.', TOAST.DANGER);
+      return;
+    }
+
     document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = acc.username;
     document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = acc.username;
-    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = acc.password;
-    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = acc.name || '';
+    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = ''; // Tidak pernah isi password ke form
+    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = acc.name || nameFromDOM || '';
     document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = acc.role;
+
+    // Update placeholder password agar user tahu field opsional saat edit
+    const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
+    if (pwInput) {
+      pwInput.placeholder = 'Kosongkan jika tidak diubah';
+      pwInput.required    = false;
+    }
+
     const f = document.getElementById(EL.ADD_ACCOUNT_FORM_CARD);
-    f.style.display = 'block';
-    setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    if (f) {
+      f.style.display = 'block';
+      setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    }
   },
 
   async saveAccount() {
@@ -334,10 +370,14 @@ const AppAuth = {
     const name        = document.getElementById(EL.INPUT_ACCOUNT_NAME).value.trim();
     const role        = document.getElementById(EL.INPUT_ACCOUNT_ROLE).value;
     const editOldUser = document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value;
+    const isEdit      = !!editOldUser;
 
-    if (!username || !password || !name) { UIService.showToast(ERR.REQUIRED_FIELD('Username, password, dan nama'), TOAST.WARNING); return; }
+    if (!username || !name) { UIService.showToast(ERR.REQUIRED_FIELD('Username dan nama'), TOAST.WARNING); return; }
+    if (!isEdit && !password) { UIService.showToast(ERR.REQUIRED_FIELD('Password'), TOAST.WARNING); return; }
     if (username.length < 3) { UIService.showToast(ERR.MIN_LENGTH('Username', 3), TOAST.WARNING); return; }
+    if (password && password.length < 6) { UIService.showToast(ERR.MIN_LENGTH('Password', 6), TOAST.WARNING); return; }
 
+    // Cek duplikat username (hanya dari daftar akun yang sudah ada, tanpa expose password)
     let accounts = [];
     try { accounts = await DataAccess.getAccounts(); }
     catch (err) { accounts = []; }
@@ -346,10 +386,24 @@ const AppAuth = {
     if (dup && dup.username !== editOldUser) { UIService.showToast(ERR.DUPLICATE('Username'), TOAST.WARNING); return; }
 
     try {
-      if (editOldUser && editOldUser !== username) await DataAccess.deleteAccount(editOldUser);
-      await DataAccess.saveAccount({ username, password, role, name });
+      // Jika edit dan password dikosongkan, ambil password lama dari server via action khusus
+      // Server (handleSaveAccount) akan mempertahankan password lama jika field password kosong
+      const payload = { username, name, role, oldUsername: editOldUser || '' };
+      if (password) payload.password = password;
+
+      const res  = await fetch(window.GS_API_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body:    JSON.stringify({ action: 'saveAccount', ...payload })
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || ERR.SAVE_FAILED);
+
       UIService.showToast('Akun berhasil disimpan!', TOAST.SUCCESS);
       document.getElementById(EL.ADD_ACCOUNT_FORM_CARD).style.display = 'none';
+      // Reset placeholder password kembali ke default
+      const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
+      if (pwInput) { pwInput.placeholder = 'password'; pwInput.required = true; }
       await AppAuth.renderAccountManager();
     } catch (err) {
       AppError.handle(err, 'Menyimpan akun');

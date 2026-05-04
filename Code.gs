@@ -52,12 +52,14 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     const { action, sheet, data, id } = payload;
 
+    if (action === 'login')       return jsonOk(handleLogin(payload.username, payload.password));
     if (action === 'upsert')      return jsonOk({ row: upsert(sheet, data) });
     if (action === 'delete')      return jsonOk({ deleted: deleteRow(sheet, id) });
     if (action === 'deleteWhere') return jsonOk({ deleted: deleteWhere(sheet, payload.field, payload.value) });
     if (action === 'batchUpsert') return jsonOk({ rows: batchUpsert(payload.operations || []) });
     if (action === 'batchDelete') return jsonOk({ deleted: batchDelete(payload.operations || []) });
     if (action === 'initSheets')  return jsonOk({ message: initAllSheets() });
+    if (action === 'saveAccount') return jsonOk({ row: handleSaveAccount(payload) });
 
     return jsonErr('Unknown POST action: ' + action);
   } catch(err) {
@@ -467,9 +469,9 @@ function initAllSheets() {
   const accountWs = ss.getSheetByName('accounts');
   if (accountWs && accountWs.getLastRow() <= 1) {
     const defaults = [
-      ['admin',   'admin123',   'admin',   'Administrator'],
-      ['hse',     'hse123',     'hse',     'HSE Officer'],
-      ['pembeli', 'pembeli123', 'pembeli', 'Staff Pembeli']
+      ['admin',   hashPassword('admin123'),   'admin',   'Administrator'],
+      ['hse',     hashPassword('hse123'),     'hse',     'HSE Officer'],
+      ['pembeli', hashPassword('pembeli123'), 'pembeli', 'Staff Pembeli']
     ];
     accountWs.getRange(2, 1, defaults.length, 4).setValues(defaults);
   }
@@ -514,6 +516,108 @@ function objToRow(headers, obj) {
     if (typeof v === 'object') return JSON.stringify(v);
     return v;
   });
+}
+
+// ============================================================
+// AUTH HELPERS — password hashing & server-side login
+// ============================================================
+
+// SHA-256 hash menggunakan Utilities.computeDigest bawaan Apps Script
+function hashPassword(password) {
+  const raw = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    password,
+    Utilities.Charset.UTF_8
+  );
+  return raw.map(b => ('0' + (b & 0xFF).toString(16)).slice(-2)).join('');
+}
+
+// Migrasi otomatis: jika password belum di-hash (panjang < 64), hash dan simpan
+function _migratePasswordIfNeeded(ws, headers, rowNum, plainPassword) {
+  const hashed = hashPassword(plainPassword);
+  const pwCol  = headers.indexOf('password') + 1;
+  ws.getRange(rowNum, pwCol).setValue(hashed);
+  return hashed;
+}
+
+// Login handler — validasi di server, hanya kembalikan data sesi (tanpa password)
+function handleLogin(username, password) {
+  if (!username || !password) throw new Error('Username dan password wajib diisi.');
+
+  const ws      = getOrCreateSheet('accounts');
+  const headers = SHEETS.accounts.headers;
+  const lastRow = ws.getLastRow();
+
+  if (lastRow < 2) throw new Error('Tidak ada akun terdaftar.');
+
+  const values = ws.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const uCol   = headers.indexOf('username');
+  const pwCol  = headers.indexOf('password');
+  const roleCol= headers.indexOf('role');
+  const nameCol= headers.indexOf('name');
+
+  const inputHash = hashPassword(password);
+
+  for (let i = 0; i < values.length; i++) {
+    const row      = values[i];
+    const rowUser  = String(row[uCol] || '').toLowerCase();
+    if (rowUser !== username.toLowerCase()) continue;
+
+    let storedPw = String(row[pwCol] || '');
+
+    // Auto-migrasi plaintext → hash saat pertama login
+    if (storedPw.length < 64) {
+      storedPw = _migratePasswordIfNeeded(ws, headers, i + 2, storedPw);
+    }
+
+    if (storedPw !== inputHash) throw new Error('Username atau password salah.');
+
+    // Sukses — kembalikan data sesi (TANPA password)
+    return {
+      session: {
+        username: String(row[uCol]),
+        name:     String(row[nameCol] || ''),
+        role:     String(row[roleCol] || 'hse')
+      }
+    };
+  }
+
+  throw new Error('Username atau password salah.');
+}
+
+// Save account — hash password sebelum disimpan; pertahankan password lama jika tidak dikirim
+function handleSaveAccount(payload) {
+  const { username, name, role, oldUsername, password } = payload;
+  if (!username || !name) throw new Error('Data akun tidak lengkap.');
+
+  let finalPasswordHash;
+
+  if (password) {
+    // Password baru dikirim → hash dan simpan
+    finalPasswordHash = hashPassword(password);
+  } else {
+    // Password tidak dikirim (mode edit, tidak diubah) → ambil hash lama
+    const ws      = getOrCreateSheet('accounts');
+    const headers = SHEETS.accounts.headers;
+    const lastRow = ws.getLastRow();
+    const uCol    = headers.indexOf('username');
+    const pwCol   = headers.indexOf('password');
+    const targetUser = oldUsername || username;
+
+    if (lastRow >= 2) {
+      const values = ws.getRange(2, 1, lastRow - 1, headers.length).getValues();
+      const row    = values.find(r => String(r[uCol]).toLowerCase() === targetUser.toLowerCase());
+      if (row) finalPasswordHash = String(row[pwCol]);
+    }
+    if (!finalPasswordHash) throw new Error('Password wajib diisi untuk akun baru.');
+  }
+
+  // Jika rename username, hapus baris lama dulu
+  if (oldUsername && oldUsername !== username) {
+    deleteWhere('accounts', 'username', oldUsername);
+  }
+
+  return upsert('accounts', { username, password: finalPasswordHash, name, role });
 }
 
 function jsonOk(data) {

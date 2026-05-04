@@ -73,9 +73,11 @@ const ProjectPage = {
               </td>
             </tr>`;
           }).join('');
-          
-          // Event delegation
-          tableBody.addEventListener('click', async e => {
+
+          // Ganti node untuk menghapus semua listener lama sebelum pasang yang baru
+          const freshTable = tableBody.cloneNode(true);
+          tableBody.parentNode.replaceChild(freshTable, tableBody);
+          freshTable.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
@@ -104,8 +106,11 @@ const ProjectPage = {
               </div>
             </div></div>`;
           }).join('');
-          
-          cardList.addEventListener('click', async e => {
+
+          // Ganti node untuk menghapus semua listener lama sebelum pasang yang baru
+          const freshCard = cardList.cloneNode(true);
+          cardList.parentNode.replaceChild(freshCard, cardList);
+          freshCard.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;

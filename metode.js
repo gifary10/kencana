@@ -247,10 +247,12 @@ const WorkMethodPage = {
           </div></div>`;
         }).join('');
 
-        // Event delegation — ganti onclick inline per baris
+        // Event delegation — cloneNode untuk hapus semua listener lama sebelum pasang baru
         [tableBody, cardList].forEach(container => {
           if (!container) return;
-          container.addEventListener('click', async e => {
+          const fresh = container.cloneNode(true);
+          container.parentNode.replaceChild(fresh, container);
+          fresh.addEventListener('click', async e => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const { action, id } = btn.dataset;
