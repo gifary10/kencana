@@ -1,5 +1,4 @@
 // main.js — KPT App (Google Sheets backend)
-// StorageService, DataAccess, STORAGE_KEYS sudah dipindah ke db.js
 
 /* ==================== WORK TYPE APD ==================== */
 const WORK_TYPE_APD = {
@@ -116,24 +115,8 @@ const UtilityService = {
     return 'Rp ' + new Intl.NumberFormat('id-ID').format(amount);
   },
 
-  getPPEList(ppeData) {
-    if (!ppeData) return [];
-    const items = [];
-    if (ppeData.selected_work_types && Array.isArray(ppeData.selected_work_types)) {
-      ppeData.selected_work_types.forEach(typeKey => {
-        const wt = WORK_TYPE_APD[typeKey];
-        if (wt && wt.items) wt.items.forEach(i => items.push(i.label));
-      });
-    }
-    if (ppeData.custom_items && Array.isArray(ppeData.custom_items)) {
-      items.push(...ppeData.custom_items.filter(Boolean));
-    }
-    return items;
-  },
-
   async generateJSADocNumber() {
     const y = new Date().getFullYear();
-    // Gunakan getCount — jauh lebih cepat dari getAll+filter
     const count = await DB.getCount(SHEETS.JSA);
     return `JSA-${y}-${String(count + 1).padStart(3, '0')}`;
   },
@@ -142,13 +125,11 @@ const UtilityService = {
     const count = await DB.getCount(SHEETS.WORK_METHODS);
     return `WM-${y}-${String(count + 1).padStart(3, '0')}`;
   },
-  async getDashboardStats() { return DB.getStats(); },
 
   showConfirmDialog(message, onConfirm, onCancel) {
     const existing = document.getElementById('confirmDialog');
     if (existing) existing.remove();
 
-    // Bangun DOM secara programatik — TIDAK gunakan innerHTML dengan data user
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
       <div class="modal fade" id="confirmDialog" tabindex="-1">
@@ -168,7 +149,6 @@ const UtilityService = {
       </div>`;
     document.body.appendChild(wrapper.firstElementChild);
 
-    // Set pesan dengan textContent — aman dari XSS
     document.getElementById('confirmDialogMsg').textContent = message;
 
     const modalEl = document.getElementById('confirmDialog');
@@ -183,6 +163,11 @@ const UtilityService = {
 /* ==================== UI SERVICE ==================== */
 const UIService = {
   currentRoute: null,
+  _guardCache: { companyOk: null, hasProjects: null },
+
+  invalidateGuardCache() {
+    this._guardCache = { companyOk: null, hasProjects: null };
+  },
 
   init() {
     this.setupRouting();
@@ -245,10 +230,11 @@ const UIService = {
       return;
     }
 
-    // Guard: company complete?
     if (ROUTES_NEED_COMPANY.includes(route)) {
-      const companyOk = await DataAccess.isCompanyComplete();
-      if (!companyOk) {
+      if (this._guardCache.companyOk === null) {
+        this._guardCache.companyOk = await DataAccess.isCompanyComplete();
+      }
+      if (!this._guardCache.companyOk) {
         mainContent.innerHTML = this.showFlowBanner(
           'bi-building-exclamation', 'Lengkapi Data Perusahaan Terlebih Dahulu',
           ERR.COMPANY_INCOMPLETE,
@@ -260,10 +246,11 @@ const UIService = {
       }
     }
 
-    // Guard: has projects?
     if (ROUTES_NEED_PROJECT.includes(route)) {
-      const hasP = await DataAccess.hasProjects();
-      if (!hasP) {
+      if (this._guardCache.hasProjects === null) {
+        this._guardCache.hasProjects = await DataAccess.hasProjects();
+      }
+      if (!this._guardCache.hasProjects) {
         mainContent.innerHTML = this.showFlowBanner(
           'bi-clipboard-plus', 'Buat Proyek Terlebih Dahulu',
           ERR.NO_PROJECT,
@@ -274,18 +261,6 @@ const UIService = {
         return;
       }
     }
-
-    // Map route → Page object (menggantikan switch-case panjang)
-    const PAGE_MAP = {
-      [ROUTES.DASHBOARD]:  DashboardPage,
-      [ROUTES.PERUSAHAAN]: CompanyPage,
-      [ROUTES.PROYEK]:     ProjectPage,
-      [ROUTES.METODE]:     WorkMethodPage,
-      [ROUTES.JSA]:        JSAPage,
-      [ROUTES.MANPOWER]:   ManpowerPage,
-      [ROUTES.PEMBELIAN]:  ProcurementPage,
-      [ROUTES.LAPORAN]:    ReportPage,
-    };
 
     const page = PAGE_MAP[route] || DashboardPage;
     try {
@@ -350,7 +325,6 @@ const DashboardPage = {
         DB.getRecent(SHEETS.PROJECTS, 4)
       ]);
 
-      // Alerts
       const alertsEl = document.getElementById(EL.DASHBOARD_ALERTS);
       if (alertsEl) {
         const isCompanyReady = !!(company && company.name);
@@ -362,7 +336,6 @@ const DashboardPage = {
         }
       }
 
-      // Stats
       const statCompanyEl = document.getElementById(EL.STAT_COMPANY);
       if (statCompanyEl) statCompanyEl.textContent = company ? '✓' : '-';
 
@@ -378,7 +351,6 @@ const DashboardPage = {
         if (el) el.textContent = val !== undefined ? val : '-';
       });
 
-      // Recent JSA
       const recentJSAEl = document.getElementById(EL.RECENT_JSA);
       if (recentJSAEl) {
         recentJSAEl.innerHTML = recentJSA.length > 0
@@ -394,7 +366,6 @@ const DashboardPage = {
           : '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-journal"></i></div><p>Belum ada JSA</p></div>';
       }
 
-      // Recent Projects
       const recentProjectsEl = document.getElementById(EL.RECENT_PROJECTS);
       if (recentProjectsEl) {
         recentProjectsEl.innerHTML = recentProjects.length > 0
@@ -419,5 +390,24 @@ const DashboardPage = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => { UIService.init(); });
+// Definisikan PAGE_MAP sekali di sini
+const PAGE_MAP = Object.freeze({
+  [ROUTES.DASHBOARD]:  DashboardPage,
+  [ROUTES.PERUSAHAAN]: CompanyPage,
+  [ROUTES.PROYEK]:     ProjectPage,
+  [ROUTES.METODE]:     WorkMethodPage,
+  [ROUTES.JSA]:        JSAPage,
+  [ROUTES.MANPOWER]:   ManpowerPage,
+  [ROUTES.PEMBELIAN]:  ProcurementPage,
+  [ROUTES.LAPORAN]:    ReportPage,
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  UIService.init();
+  if (!AuthService.isLoggedIn()) {
+    LoginPage.show();
+  } else {
+    AppAuth.onLoginSuccess(AuthService.getCurrentRole());
+  }
+});
 window.UIService = UIService;

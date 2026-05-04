@@ -72,6 +72,7 @@ const CompanyPage = {
     };
 
     await DataAccess.saveCompany(data);
+    UIService.invalidateGuardCache(); // company baru disimpan — reset guard check
     UIService.showToast('Profil berhasil disimpan!', 'success');
 
     const hasP = await DataAccess.hasProjects();

@@ -1,6 +1,7 @@
 // laporan.js — Report Page (async Google Sheets)
 const ReportPage = {
   _currentReportType: 'jsa',
+  _loadedTabs: new Set(), // Track tab yang sudah di-load
   // Cache data setelah di-load agar render report tidak async
   _data: { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null },
 
@@ -38,13 +39,16 @@ const ReportPage = {
   },
 
   async init() {
-    // Load all data once
-    const [projects, jsa, wm, po, personnel, manpower, company] = await Promise.all([
-      DataAccess.getAllProjects(), DataAccess.getAllJSA(), DataAccess.getAllWorkMethods(),
-      DataAccess.getAllPO(), DataAccess.getAllPersonnel(), DataAccess.getAllManpower(),
+    this._loadedTabs = new Set();
+    this._data = { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null };
+
+    // Hanya load data minimal yang selalu dibutuhkan: projects + company
+    const [projects, company] = await Promise.all([
+      DataAccess.getAllProjects(),
       DataAccess.getCompany()
     ]);
-    this._data = { projects, jsa, wm, po, personnel, manpower, company };
+    this._data.projects = projects;
+    this._data.company  = company;
 
     const sel = document.getElementById('selectReportProject');
     if (sel) {
@@ -56,16 +60,49 @@ const ReportPage = {
       document.getElementById('reportOutput').innerHTML = UIService.showFlowBanner('bi-clipboard-plus','Belum Ada Proyek','Buat proyek terlebih dahulu sebelum mencetak laporan.','<i class="bi bi-clipboard-data"></i> Buat Proyek',"UIService.navigate('proyek')");
       return;
     }
-    this.switchReportTab('jsa');
+    // Load tab pertama (jsa) saja, tab lain akan di-load saat diklik
+    await this.switchReportTab('jsa');
+  },
+
+  // Load data untuk tab tertentu, hanya jika belum pernah di-load
+  async _loadTabData(tab) {
+    const reportEl = document.getElementById('reportOutput');
+    if (reportEl) reportEl.innerHTML = '<div class="report-container"><div class="empty-state"><p>Memuat data…</p></div></div>';
+
+    try {
+      if (tab === 'jsa' && !this._data.jsa.length) {
+        this._data.jsa = await DataAccess.getAllJSA();
+      }
+      if (tab === 'wm' && !this._data.wm.length) {
+        this._data.wm = await DataAccess.getAllWorkMethods();
+      }
+      if ((tab === 'po' || tab === 'cashflow') && !this._data.po.length) {
+        this._data.po = await DataAccess.getAllPO();
+      }
+      if (tab === 'manpower' && !this._data.personnel.length) {
+        [this._data.personnel, this._data.manpower] = await Promise.all([
+          DataAccess.getAllPersonnel(),
+          DataAccess.getAllManpower()
+        ]);
+      }
+      // Tab 'project' hanya butuh projects yang sudah di-load saat init
+    } catch (err) {
+      AppError.handle(err, `Memuat data tab ${tab}`);
+    }
   },
 
   onProjectChange() { this.buildDocSelector(this._currentReportType); this.renderReport(); },
 
-  switchReportTab(reportType) {
+  async switchReportTab(reportType) {
     this._currentReportType = reportType;
     document.querySelectorAll('#reportTabs .tab-nav__btn').forEach((btn,idx)=>{
       btn.classList.toggle('tab-nav__btn--active',['jsa','wm','po','project','cashflow','manpower'][idx]===reportType);
     });
+    // Lazy load: muat data tab ini jika belum pernah di-load
+    if (!this._loadedTabs.has(reportType)) {
+      await this._loadTabData(reportType);
+      this._loadedTabs.add(reportType);
+    }
     this.buildDocSelector(reportType);
     this.renderReport();
   },

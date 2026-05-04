@@ -45,8 +45,6 @@ function _validateToken(tokenFromRequest) {
 
 function doGet(e) {
   const action = e.parameter.action || '';
-  const sheet  = e.parameter.sheet  || '';
-  const id     = e.parameter.id     || '';
 
   // Action 'ping' dan 'login' tidak butuh token
   if (action !== 'ping') {
@@ -57,11 +55,11 @@ function doGet(e) {
   try {
     if (action === 'ping')       return jsonOk({ message: 'KPT API ready', ts: new Date().toISOString() });
     if (action === 'getAll')     return _handleGetAll(e);
-    if (action === 'getById')    return jsonOk({ row: getById(sheet, id) });
-    if (action === 'getCount')   return jsonOk({ count: getCount(sheet) });
+    if (action === 'getById')    return jsonOk({ row: getById(e.parameter.sheet, e.parameter.id) });
+    if (action === 'getCount')   return jsonOk({ count: getCount(e.parameter.sheet) });
     if (action === 'getCounts')  return jsonOk(getCounts(e.parameter.sheets ? e.parameter.sheets.split(',') : []));
     if (action === 'getStats')   return jsonOk(getDashboardStats());
-    if (action === 'getRecent')  return jsonOk(getRecentOptimized(sheet, parseInt(e.parameter.limit) || 5));
+    if (action === 'getRecent')  return jsonOk(getRecentOptimized(e.parameter.sheet, parseInt(e.parameter.limit) || 5));
     if (action === 'getSummary') return jsonOk(getProjectSummary(e.parameter.projectId));
     return jsonErr('Unknown GET action: ' + action);
   } catch(err) {
@@ -106,7 +104,7 @@ function _handleGetAll(e) {
   const searchValue = e.parameter.searchValue || '';
   const limit       = parseInt(e.parameter.limit) || 0;
   const offset      = parseInt(e.parameter.offset) || 0;
-  const fields      = e.parameter.fields ? e.parameter.fields.split(',') : null; // NEW: Select specific fields
+  const fields      = e.parameter.fields ? e.parameter.fields.split(',') : null;
   
   return jsonOk(getAllOptimized(sheet, { filterField, filterValue, searchField, searchValue, limit, offset, fields }));
 }
@@ -154,26 +152,36 @@ function getAllOptimized(sheetName, opts = {}) {
   }
 
   // Sort by updated_at / created_at descending
-  const dateCI = headers.indexOf('updated_at');
+  const dateCI    = headers.indexOf('updated_at');
   const createdCI = headers.indexOf('created_at');
   filtered.sort((a, b) => {
-    const dA = a[dateCI] || a[createdCI] || '';
-    const dB = b[dateCI] || b[createdCI] || '';
-    return String(dB).localeCompare(String(dA));
+    const rawA = a[dateCI] || a[createdCI] || '';
+    const rawB = b[dateCI] || b[createdCI] || '';
+    const tA = rawA ? (rawA instanceof Date ? rawA.getTime() : new Date(rawA).getTime()) : 0;
+    const tB = rawB ? (rawB instanceof Date ? rawB.getTime() : new Date(rawB).getTime()) : 0;
+    return tB - tA;
   });
 
   if (opts.limit > 0) {
     filtered = filtered.slice(opts.offset, opts.offset + opts.limit);
   }
 
-  // Map dengan field yang dipilih saja
   result.rows = filtered.map(row => {
-    const obj = {};
-    colIndices.forEach((ci, i) => {
-      const headerName = readHeaders[i] || headers[ci];
-      obj[headerName] = row[ci];
-    });
-    return rowToObj(headers, row); // Tetap gunakan rowToObj untuk formatting
+    if (opts.fields && opts.fields.length > 0 && colIndices.length > 0) {
+      const obj = {};
+      colIndices.forEach((ci, i) => {
+        const fieldName = readHeaders[i] || headers[ci];
+        let v = row[ci];
+        if (v instanceof Date) v = v.toISOString();
+        if (v === '' || v === null || v === undefined) v = null;
+        if (typeof v === 'string' && (v.startsWith('{') || v.startsWith('['))) {
+          try { v = JSON.parse(v); } catch(e) {}
+        }
+        obj[fieldName] = v;
+      });
+      return obj;
+    }
+    return rowToObj(headers, row);
   });
   
   return result;
@@ -237,7 +245,6 @@ function getProjectSummary(projectId) {
   const ss = _getSpreadsheet();
   const summary = { jsa_count: 0, wm_count: 0, po_count: 0, mp_count: 0 };
   
-  // Count JSA for project
   ['jsa', 'work_methods', 'procurement', 'manpower'].forEach(sheetName => {
     const ws = ss.getSheetByName(SHEETS[sheetName].name);
     if (!ws || ws.getLastRow() < 2) return;
@@ -257,7 +264,7 @@ function getProjectSummary(projectId) {
 }
 
 // ============================================================
-// EXISTING FUNCTIONS (dipertahankan dengan optimasi)
+// EXISTING FUNCTIONS
 // ============================================================
 
 function getById(sheetName, id) {
@@ -321,10 +328,6 @@ function getDashboardStats() {
     totalPO:          counts['procurement'],
     totalManpower:    counts['manpower']
   };
-}
-
-function getRecent(sheetName, limit) {
-  return getRecentOptimized(sheetName, limit);
 }
 
 function upsert(sheetName, data) {
@@ -483,16 +486,13 @@ function batchDelete(operations) {
 
 // ============================================================
 // ATOMIC: Hapus proyek + semua data terkait dalam 1 request
-// Menggantikan 5 round-trip terpisah dari client
 // ============================================================
 function deleteProjectCascade(projectId) {
   if (!projectId) throw new Error('projectId wajib diisi');
 
-  // Hapus data terkait berdasarkan project_id
   const related = ['jsa', 'work_methods', 'procurement', 'manpower'];
   related.forEach(sheetName => deleteWhere(sheetName, 'project_id', projectId));
 
-  // Hapus proyek itu sendiri
   deleteRow('projects', projectId);
 
   return true;
@@ -556,13 +556,12 @@ function rowToObj(headers, row) {
 
 // ============================================================
 // KEAMANAN: Sanitasi formula injection
-// Nilai yang diawali = + - @ bisa dieksekusi sebagai formula di Google Sheets
 // ============================================================
 function sanitizeValue(v) {
   if (typeof v !== 'string') return v;
   const dangerous = ['=', '+', '-', '@', '\t', '\r'];
   if (dangerous.some(c => v.startsWith(c))) {
-    return "'" + v; // Prefix apostrof → Sheets perlakukan sebagai teks literal
+    return "'" + v;
   }
   return v;
 }
@@ -580,7 +579,6 @@ function objToRow(headers, obj) {
 // AUTH HELPERS — password hashing & server-side login
 // ============================================================
 
-// SHA-256 hash menggunakan Utilities.computeDigest bawaan Apps Script
 function hashPassword(password) {
   const raw = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
@@ -590,7 +588,6 @@ function hashPassword(password) {
   return raw.map(b => ('0' + (b & 0xFF).toString(16)).slice(-2)).join('');
 }
 
-// Migrasi otomatis: jika password belum di-hash (panjang < 64), hash dan simpan
 function _migratePasswordIfNeeded(ws, headers, rowNum, plainPassword) {
   const hashed = hashPassword(plainPassword);
   const pwCol  = headers.indexOf('password') + 1;
@@ -598,7 +595,6 @@ function _migratePasswordIfNeeded(ws, headers, rowNum, plainPassword) {
   return hashed;
 }
 
-// Login handler — validasi di server, hanya kembalikan data sesi (tanpa password)
 function handleLogin(username, password) {
   if (!username || !password) throw new Error('Username dan password wajib diisi.');
 
@@ -623,14 +619,12 @@ function handleLogin(username, password) {
 
     let storedPw = String(row[pwCol] || '');
 
-    // Auto-migrasi plaintext → hash saat pertama login
     if (storedPw.length < 64) {
       storedPw = _migratePasswordIfNeeded(ws, headers, i + 2, storedPw);
     }
 
     if (storedPw !== inputHash) throw new Error('Username atau password salah.');
 
-    // Sukses — kembalikan data sesi (TANPA password)
     return {
       session: {
         username: String(row[uCol]),
@@ -643,7 +637,6 @@ function handleLogin(username, password) {
   throw new Error('Username atau password salah.');
 }
 
-// Save account — hash password sebelum disimpan; pertahankan password lama jika tidak dikirim
 function handleSaveAccount(payload) {
   const { username, name, role, oldUsername, password } = payload;
   if (!username || !name) throw new Error('Data akun tidak lengkap.');
@@ -651,10 +644,8 @@ function handleSaveAccount(payload) {
   let finalPasswordHash;
 
   if (password) {
-    // Password baru dikirim → hash dan simpan
     finalPasswordHash = hashPassword(password);
   } else {
-    // Password tidak dikirim (mode edit, tidak diubah) → ambil hash lama
     const ws      = getOrCreateSheet('accounts');
     const headers = SHEETS.accounts.headers;
     const lastRow = ws.getLastRow();
@@ -670,7 +661,6 @@ function handleSaveAccount(payload) {
     if (!finalPasswordHash) throw new Error('Password wajib diisi untuk akun baru.');
   }
 
-  // Jika rename username, hapus baris lama dulu
   if (oldUsername && oldUsername !== username) {
     deleteWhere('accounts', 'username', oldUsername);
   }

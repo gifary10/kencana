@@ -33,8 +33,7 @@ const AppNavbar = {
     const sidebar = document.getElementById('appSidebar');
     const overlay = document.getElementById('sidebarOverlay');
     if (!sidebar || !overlay) return;
-    const isOpen = sidebar.classList.contains('open');
-    isOpen ? this.closeSidebar() : this.openSidebar();
+    sidebar.classList.contains('open') ? this.closeSidebar() : this.openSidebar();
   },
   openSidebar() {
     const sidebar = document.getElementById('appSidebar');
@@ -126,7 +125,6 @@ const LoginPage = {
     btn.innerHTML   = '<i class="bi bi-hourglass-split"></i> Memverifikasi…';
 
     try {
-      // Validasi dilakukan di server — browser tidak pernah menerima data akun
       const res  = await fetch(window.GS_API_URL, {
         method:  'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -157,6 +155,8 @@ const LoginPage = {
   },
 
   hide() {
+    const pwField = document.getElementById('loginPassword');
+    if (pwField) pwField.value = '';
     document.getElementById('loginContainer').style.display = 'none';
     ['appSidebar','appMainContent'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
     const userInfoBar = document.getElementById('userInfoBar');
@@ -171,7 +171,6 @@ const AppAuth = {
   onLoginSuccess(role) {
     const session = AuthService.getCurrentUser();
     AppNavbar.updateUserInfo(session);
-    AppNavbar.init();
     this.applyRoleToUI(role);
     const defaultRoute = ROLES[role]?.defaultRoute || 'dashboard';
     window.location.hash = '#' + defaultRoute;
@@ -213,7 +212,10 @@ const AppAuth = {
   },
 
   logout() {
-    UtilityService.showConfirmDialog('Apakah Anda yakin ingin keluar?', () => AuthService.logout());
+    UtilityService.showConfirmDialog('Apakah Anda yakin ingin keluar?', () => {
+      this._navigatePatched = false;
+      AuthService.logout();
+    });
   },
 
   async renderAccountManager() {
@@ -277,11 +279,8 @@ const AppAuth = {
     const mainContent = document.getElementById(EL.APP_MAIN_CONTENT);
     if (!mainContent) return;
 
-    // Tulis HTML ke DOM
     mainContent.innerHTML = html;
 
-    // Pasang listener SETELAH innerHTML selesai — pada tbody yang baru saja dibuat
-    // Tidak perlu cloneNode karena node ini baru dibuat, belum pernah punya listener
     const tbody = document.getElementById('accountTableBody');
     if (tbody) {
       tbody.addEventListener('click', function(e) {
@@ -301,7 +300,6 @@ const AppAuth = {
     document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = '';
     document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = ROLE_KEYS.ADMIN;
 
-    // Reset password field — wajib untuk akun baru
     const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
     if (pwInput) {
       pwInput.value       = '';
@@ -317,23 +315,6 @@ const AppAuth = {
   },
 
   async editAccount(username) {
-    // Ambil data yang tersedia dari DOM terlebih dulu (nama dari tabel)
-    // untuk menghindari fetch ulang yang tidak perlu
-    let nameFromDOM = '';
-    let roleFromDOM = '';
-    const tbody = document.getElementById('accountTableBody');
-    if (tbody) {
-      const rows = tbody.querySelectorAll('tr');
-      rows.forEach(row => {
-        const editBtn = row.querySelector('[data-action="edit-account"]');
-        if (editBtn && editBtn.getAttribute('data-username') === username) {
-          const cells = row.querySelectorAll('td');
-          if (cells[2]) nameFromDOM = cells[2].textContent.trim();
-        }
-      });
-    }
-
-    // Tetap fetch untuk mendapatkan role yang akurat (tidak ter-expose di DOM sebagai value)
     let accounts = [];
     try { accounts = await DataAccess.getAccounts(); }
     catch (err) { AppError.handle(err, 'Memuat data akun'); return; }
@@ -346,11 +327,10 @@ const AppAuth = {
 
     document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = acc.username;
     document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = acc.username;
-    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = ''; // Tidak pernah isi password ke form
-    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = acc.name || nameFromDOM || '';
+    document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = '';
+    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = acc.name || '';
     document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = acc.role;
 
-    // Update placeholder password agar user tahu field opsional saat edit
     const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
     if (pwInput) {
       pwInput.placeholder = 'Kosongkan jika tidak diubah';
@@ -377,7 +357,6 @@ const AppAuth = {
     if (username.length < 3) { UIService.showToast(ERR.MIN_LENGTH('Username', 3), TOAST.WARNING); return; }
     if (password && password.length < 6) { UIService.showToast(ERR.MIN_LENGTH('Password', 6), TOAST.WARNING); return; }
 
-    // Cek duplikat username (hanya dari daftar akun yang sudah ada, tanpa expose password)
     let accounts = [];
     try { accounts = await DataAccess.getAccounts(); }
     catch (err) { accounts = []; }
@@ -386,8 +365,6 @@ const AppAuth = {
     if (dup && dup.username !== editOldUser) { UIService.showToast(ERR.DUPLICATE('Username'), TOAST.WARNING); return; }
 
     try {
-      // Jika edit dan password dikosongkan, ambil password lama dari server via action khusus
-      // Server (handleSaveAccount) akan mempertahankan password lama jika field password kosong
       const payload = { username, name, role, oldUsername: editOldUser || '' };
       if (password) payload.password = password;
 
@@ -401,7 +378,6 @@ const AppAuth = {
 
       UIService.showToast('Akun berhasil disimpan!', TOAST.SUCCESS);
       document.getElementById(EL.ADD_ACCOUNT_FORM_CARD).style.display = 'none';
-      // Reset placeholder password kembali ke default
       const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
       if (pwInput) { pwInput.placeholder = 'password'; pwInput.required = true; }
       await AppAuth.renderAccountManager();
@@ -436,7 +412,5 @@ const AppAuth = {
 
 /* ==================== INIT ==================== */
 document.addEventListener('DOMContentLoaded', function() {
-  if (!AuthService.isLoggedIn()) {
-    setTimeout(() => LoginPage.show(), 100);
-  }
+  AppNavbar.init();
 });

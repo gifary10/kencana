@@ -8,19 +8,19 @@ const GS_TOKEN = window.GS_API_TOKEN || '';
 const _cache           = {};
 const _pending         = {};
 const _cacheTimestamps = {};
-const _cacheMeta       = {}; // Metadata: { total, lastFetched }
+const _cacheMeta       = {};
 
 // TTL bervariasi berdasarkan jenis data
 const CACHE_TTL = {
-  company:      10 * 60 * 1000, // 10 menit - jarang berubah
-  projects:      5 * 60 * 1000, // 5 menit
-  personnel:     5 * 60 * 1000, // 5 menit
-  accounts:      5 * 60 * 1000, // 5 menit
-  jsa:           2 * 60 * 1000, // 2 menit
-  work_methods:  2 * 60 * 1000, // 2 menit
-  manpower:      2 * 60 * 1000, // 2 menit
-  procurement:   2 * 60 * 1000, // 2 menit
-  default:       1 * 60 * 1000  // 1 menit
+  company:      10 * 60 * 1000,
+  projects:      5 * 60 * 1000,
+  personnel:     5 * 60 * 1000,
+  accounts:      5 * 60 * 1000,
+  jsa:           2 * 60 * 1000,
+  work_methods:  2 * 60 * 1000,
+  manpower:      2 * 60 * 1000,
+  procurement:   2 * 60 * 1000,
+  default:       1 * 60 * 1000
 };
 
 function _getTTL(sheet) {
@@ -48,10 +48,6 @@ function _setCache(key, value, meta = {}) {
   _cacheMeta[key]       = { ..._cacheMeta[key], ...meta };
 }
 
-function _getCacheMeta(key) {
-  return _cacheMeta[key] || {};
-}
-
 function _invalidate(sheet) {
   Object.keys(_cache).forEach(key => {
     if (key === sheet || key.startsWith(sheet + '::')) {
@@ -64,9 +60,7 @@ function _invalidate(sheet) {
 
 function _invalidateRelated(sheet) {
   _invalidate(sheet);
-  // Hanya invalidate yang benar-benar terkait
   if (sheet === 'projects') {
-    // Hanya invalidate count, bukan semua data
     ['jsa', 'work_methods', 'manpower', 'procurement'].forEach(s => {
       _invalidate(s + '::count');
       _invalidate(s + '::summary');
@@ -99,7 +93,6 @@ async function _fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
 
 async function _get(params) {
   if (!GS_URL) throw new Error('GS_API_URL belum dikonfigurasi. Edit config.js.');
-  // Sertakan token di setiap request (kecuali ping)
   if (params.action !== 'ping' && GS_TOKEN) params.token = GS_TOKEN;
   const url = GS_URL + '?' + new URLSearchParams(params).toString();
   const res = await _fetchWithRetry(url);
@@ -110,7 +103,6 @@ async function _get(params) {
 
 async function _post(body) {
   if (!GS_URL) throw new Error('GS_API_URL belum dikonfigurasi. Edit config.js.');
-  // Sertakan token di setiap request (kecuali login)
   if (body.action !== 'login' && GS_TOKEN) body.token = GS_TOKEN;
   const res = await _fetchWithRetry(GS_URL, {
     method: 'POST',
@@ -163,9 +155,6 @@ const DB = {
   debounceCall: _debounceCall,
   debounce,
 
-  // =============================================
-  // OPTIMIZED: getAll dengan field selection
-  // =============================================
   async getAll(sheet, opts = {}) {
     const key = _cacheKey(sheet, opts);
 
@@ -181,7 +170,7 @@ const DB = {
     if (opts.searchValue) params.searchValue = opts.searchValue;
     if (opts.limit)       params.limit       = opts.limit;
     if (opts.offset)      params.offset      = opts.offset;
-    if (opts.fields)      params.fields      = opts.fields.join(','); // New: field selection
+    if (opts.fields)      params.fields      = opts.fields.join(',');
 
     _pending[key] = _get(params)
       .then(r => {
@@ -200,9 +189,6 @@ const DB = {
     return _pending[key];
   },
 
-  // =============================================
-  // OPTIMIZED: getById dengan cache
-  // =============================================
   async getById(sheet, id) {
     if (!id) return null;
     const key = sheet + '::id::' + id;
@@ -221,9 +207,6 @@ const DB = {
     }
   },
 
-  // =============================================
-  // OPTIMIZED: getCount dengan cache
-  // =============================================
   async getCount(sheet) {
     const key = sheet + '::count';
     if (_isCacheValid(key, sheet)) return _cache[key];
@@ -238,9 +221,6 @@ const DB = {
     }
   },
 
-  // =============================================
-  // NEW: getCounts - Multiple counts in 1 request
-  // =============================================
   async getCounts(sheets) {
     const key = 'counts::' + sheets.join(',');
     if (_isCacheValid(key, 'default')) return _cache[key];
@@ -255,9 +235,6 @@ const DB = {
     }
   },
 
-  // =============================================
-  // NEW: getProjectSummary - Summary tanpa getAll
-  // =============================================
   async getProjectSummary(projectId) {
     if (!projectId) return { jsa_count: 0, wm_count: 0, po_count: 0, mp_count: 0 };
     
@@ -307,7 +284,6 @@ const DB = {
     const key = _cacheKey(sheet);
     const oldCache = _cache[key] ? { ..._cache[key] } : null;
 
-    // Optimistic update
     if (_cache[key] && _cache[key].rows) {
       const existingIdx = _cache[key].rows.findIndex(
         r => (r.id || r.username) === (data.id || data.username)
@@ -323,7 +299,6 @@ const DB = {
     _showLoading();
     try {
       const r = await _post({ action: 'upsert', sheet, data });
-      // Invalidate related caches
       _invalidateRelated(sheet);
       if (_cache[key] && _cache[key].rows) {
         const serverIdx = _cache[key].rows.findIndex(
@@ -472,7 +447,7 @@ const DataAccess = {
   async saveCompany(data) {
     if (!data || !data.name) return null;
     data.updated_at = new Date().toISOString();
-    await DB.upsert('company', data); // DB.upsert sudah memanggil _invalidateRelated
+    await DB.upsert('company', data);
     StorageService.addAuditLog('UPDATE_COMPANY', 'Profil perusahaan diperbarui');
     return data;
   },
@@ -495,14 +470,13 @@ const DataAccess = {
     if (!data || !data.id) return null;
     data.updated_at = new Date().toISOString();
     if (!data.created_at) data.created_at = new Date().toISOString();
-    await DB.upsert('projects', data); // DB.upsert sudah memanggil _invalidateRelated
+    await DB.upsert('projects', data);
     StorageService.addAuditLog('SAVE_PROJECT', `Proyek ${data.name} disimpan`);
     return data;
   },
 
   async deleteProject(id) {
     if (!id) return false;
-    // Satu request atomik ke server — menggantikan 5 round-trip terpisah
     _showLoading();
     try {
       await _post({ action: 'deleteProject', projectId: id });
@@ -582,8 +556,6 @@ const DataAccess = {
     if (!data || !data.id) return null;
     data.updated_at = new Date().toISOString();
     await DB.upsert('personnel', data);
-    _invalidate('personnel');
-    _invalidate('manpower'); // Karena manpower reference personnel
     StorageService.addAuditLog('SAVE_PERSONNEL', `Personel ${data.name} disimpan`);
     return data;
   },
@@ -664,7 +636,6 @@ const DataAccess = {
     data.updated_at = new Date().toISOString();
     if (!data.created_at) data.created_at = new Date().toISOString();
     await DB.upsert('procurement', data);
-    _invalidate('procurement');
     return data;
   },
 
@@ -686,7 +657,6 @@ const DataAccess = {
   async deletePO(id) {
     if (!id) return false;
     await DB.delete('procurement', id);
-    _invalidate('procurement');
     return true;
   },
 
@@ -696,13 +666,11 @@ const DataAccess = {
 
   async saveAccount(data) {
     await DB.upsert('accounts', data);
-    _invalidate('accounts');
     return data;
   },
 
   async deleteAccount(username) {
     await DB.deleteWhere('accounts', 'username', username);
-    _invalidate('accounts');
     return true;
   }
 };

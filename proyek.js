@@ -177,6 +177,7 @@ const ProjectPage = {
       await DataAccess.saveProject(data);
       this.hideProjectForm();
       await this.loadProjectTable();
+      UIService.invalidateGuardCache(); // proyek baru disimpan — reset guard check
       UIService.showToast('Proyek berhasil disimpan!', TOAST.SUCCESS);
       if (isNew) {
         const all = await DataAccess.getAllProjects();
