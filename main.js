@@ -132,23 +132,25 @@ const UtilityService = {
   },
 
   async generateJSADocNumber() {
-    const y = new Date().getFullYear(), prefix = `JSA-${y}-`;
-    const rows = (await DB.getAll(SHEETS.JSA)).rows || [];
-    const count = rows.filter(j => j.document_number?.startsWith(prefix)).length;
-    return `${prefix}${String(count + 1).padStart(3, '0')}`;
+    const y = new Date().getFullYear();
+    // Gunakan getCount — jauh lebih cepat dari getAll+filter
+    const count = await DB.getCount(SHEETS.JSA);
+    return `JSA-${y}-${String(count + 1).padStart(3, '0')}`;
   },
   async generateWMDocNumber() {
-    const y = new Date().getFullYear(), prefix = `WM-${y}-`;
-    const rows = (await DB.getAll(SHEETS.WORK_METHODS)).rows || [];
-    const count = rows.filter(w => w.document_number?.startsWith(prefix)).length;
-    return `${prefix}${String(count + 1).padStart(3, '0')}`;
+    const y = new Date().getFullYear();
+    const count = await DB.getCount(SHEETS.WORK_METHODS);
+    return `WM-${y}-${String(count + 1).padStart(3, '0')}`;
   },
   async getDashboardStats() { return DB.getStats(); },
 
   showConfirmDialog(message, onConfirm, onCancel) {
     const existing = document.getElementById('confirmDialog');
     if (existing) existing.remove();
-    document.body.insertAdjacentHTML('beforeend', `
+
+    // Bangun DOM secara programatik — TIDAK gunakan innerHTML dengan data user
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
       <div class="modal fade" id="confirmDialog" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
@@ -156,14 +158,19 @@ const UtilityService = {
               <h5 class="modal-title"><i class="bi bi-question-circle text-warning"></i> Konfirmasi</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body"><p>${message}</p></div>
+            <div class="modal-body"><p id="confirmDialogMsg"></p></div>
             <div class="modal-footer">
               <button type="button" class="btn btn--outline-secondary" data-bs-dismiss="modal" id="confirmCancelBtn">Batal</button>
               <button type="button" class="btn btn--primary" id="confirmOkBtn">OK</button>
             </div>
           </div>
         </div>
-      </div>`);
+      </div>`;
+    document.body.appendChild(wrapper.firstElementChild);
+
+    // Set pesan dengan textContent — aman dari XSS
+    document.getElementById('confirmDialogMsg').textContent = message;
+
     const modalEl = document.getElementById('confirmDialog');
     const modal = new bootstrap.Modal(modalEl);
     document.getElementById('confirmOkBtn').addEventListener('click', () => { modal.hide(); if (onConfirm) onConfirm(); });

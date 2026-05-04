@@ -1,7 +1,8 @@
 // db.js — (OPTIMIZED v3 - Lazy Loading & Smart Cache)
 
 /* ==================== CONFIG ==================== */
-const GS_URL = window.GS_API_URL || '';
+const GS_URL   = window.GS_API_URL   || '';
+const GS_TOKEN = window.GS_API_TOKEN || '';
 
 /* ==================== ENHANCED CACHE ==================== */
 const _cache           = {};
@@ -98,6 +99,8 @@ async function _fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
 
 async function _get(params) {
   if (!GS_URL) throw new Error('GS_API_URL belum dikonfigurasi. Edit config.js.');
+  // Sertakan token di setiap request (kecuali ping)
+  if (params.action !== 'ping' && GS_TOKEN) params.token = GS_TOKEN;
   const url = GS_URL + '?' + new URLSearchParams(params).toString();
   const res = await _fetchWithRetry(url);
   const json = await res.json();
@@ -107,6 +110,8 @@ async function _get(params) {
 
 async function _post(body) {
   if (!GS_URL) throw new Error('GS_API_URL belum dikonfigurasi. Edit config.js.');
+  // Sertakan token di setiap request (kecuali login)
+  if (body.action !== 'login' && GS_TOKEN) body.token = GS_TOKEN;
   const res = await _fetchWithRetry(GS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
@@ -467,8 +472,7 @@ const DataAccess = {
   async saveCompany(data) {
     if (!data || !data.name) return null;
     data.updated_at = new Date().toISOString();
-    await DB.upsert('company', data);
-    _invalidate('company');
+    await DB.upsert('company', data); // DB.upsert sudah memanggil _invalidateRelated
     StorageService.addAuditLog('UPDATE_COMPANY', 'Profil perusahaan diperbarui');
     return data;
   },
@@ -491,22 +495,20 @@ const DataAccess = {
     if (!data || !data.id) return null;
     data.updated_at = new Date().toISOString();
     if (!data.created_at) data.created_at = new Date().toISOString();
-    await DB.upsert('projects', data);
-    _invalidate('projects');
+    await DB.upsert('projects', data); // DB.upsert sudah memanggil _invalidateRelated
     StorageService.addAuditLog('SAVE_PROJECT', `Proyek ${data.name} disimpan`);
     return data;
   },
 
   async deleteProject(id) {
     if (!id) return false;
-    const batchOps = [
-      { sheet: 'jsa',          field: 'project_id', value: id },
-      { sheet: 'work_methods', field: 'project_id', value: id },
-      { sheet: 'procurement',  field: 'project_id', value: id },
-      { sheet: 'manpower',     field: 'project_id', value: id }
-    ];
-    await DB.batchDelete(batchOps);
-    await DB.delete('projects', id);
+    // Satu request atomik ke server — menggantikan 5 round-trip terpisah
+    _showLoading();
+    try {
+      await _post({ action: 'deleteProject', projectId: id });
+    } finally {
+      _hideLoading();
+    }
     _invalidateRelated('projects');
     StorageService.addAuditLog('DELETE_PROJECT', `Proyek ${id} beserta data terkait dihapus`);
     return true;
@@ -532,7 +534,6 @@ const DataAccess = {
     data.updated_at = new Date().toISOString();
     if (!data.created_at) data.created_at = new Date().toISOString();
     await DB.upsert('jsa', data);
-    _invalidate('jsa');
     StorageService.addAuditLog('SAVE_JSA', `JSA ${data.document_number || data.id} disimpan`);
     return data;
   },
@@ -540,7 +541,6 @@ const DataAccess = {
   async deleteJSA(id) {
     if (!id) return false;
     await DB.delete('jsa', id);
-    _invalidate('jsa');
     return true;
   },
 
@@ -564,7 +564,6 @@ const DataAccess = {
     data.updated_at = new Date().toISOString();
     if (!data.created_at) data.created_at = new Date().toISOString();
     await DB.upsert('work_methods', data);
-    _invalidate('work_methods');
     StorageService.addAuditLog('SAVE_WORK_METHOD', `WM ${data.document_number || data.id} disimpan`);
     return data;
   },
@@ -572,7 +571,6 @@ const DataAccess = {
   async deleteWorkMethod(id) {
     if (!id) return false;
     await DB.delete('work_methods', id);
-    _invalidate('work_methods');
     return true;
   },
 
@@ -708,4 +706,3 @@ const DataAccess = {
     return true;
   }
 };
-

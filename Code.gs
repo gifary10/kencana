@@ -5,6 +5,14 @@
 
 const SHEET_ID = '1labR19GsvF8mFcn4eAsHpzFGenWFROSBfdG0b_yoSXQ';
 
+// ============================================================
+// KEAMANAN: Token API
+// Ganti nilai ini dengan string acak yang kuat (min 32 karakter).
+// Simpan token yang sama di frontend: config.js → window.GS_API_TOKEN
+// Cara generate token acak: https://www.random.org/strings/
+// ============================================================
+const API_TOKEN = PropertiesService.getScriptProperties().getProperty('KPT_API_TOKEN') || '';
+
 const SHEETS = {
   company:      { name: 'company',      headers: ['id','name','address','contact','email','website','updated_at'] },
   projects:     { name: 'projects',     headers: ['id','name','client','location','pic','start_date','end_date','contract_value','created_at','updated_at'] },
@@ -27,10 +35,24 @@ function _getSpreadsheet() {
 // HTTP HANDLERS
 // ============================================================
 
+// ============================================================
+// TOKEN VALIDATION — validasi setiap request masuk
+// ============================================================
+function _validateToken(tokenFromRequest) {
+  if (!API_TOKEN) return true; // Token belum dikonfigurasi → lewati (mode dev)
+  return tokenFromRequest === API_TOKEN;
+}
+
 function doGet(e) {
   const action = e.parameter.action || '';
   const sheet  = e.parameter.sheet  || '';
   const id     = e.parameter.id     || '';
+
+  // Action 'ping' dan 'login' tidak butuh token
+  if (action !== 'ping') {
+    const tok = e.parameter.token || '';
+    if (!_validateToken(tok)) return jsonErr('Unauthorized');
+  }
   
   try {
     if (action === 'ping')       return jsonOk({ message: 'KPT API ready', ts: new Date().toISOString() });
@@ -52,14 +74,20 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     const { action, sheet, data, id } = payload;
 
-    if (action === 'login')       return jsonOk(handleLogin(payload.username, payload.password));
-    if (action === 'upsert')      return jsonOk({ row: upsert(sheet, data) });
-    if (action === 'delete')      return jsonOk({ deleted: deleteRow(sheet, id) });
-    if (action === 'deleteWhere') return jsonOk({ deleted: deleteWhere(sheet, payload.field, payload.value) });
-    if (action === 'batchUpsert') return jsonOk({ rows: batchUpsert(payload.operations || []) });
-    if (action === 'batchDelete') return jsonOk({ deleted: batchDelete(payload.operations || []) });
-    if (action === 'initSheets')  return jsonOk({ message: initAllSheets() });
-    if (action === 'saveAccount') return jsonOk({ row: handleSaveAccount(payload) });
+    // Login tidak butuh token (belum punya token saat login)
+    if (action !== 'login') {
+      if (!_validateToken(payload.token || '')) return jsonErr('Unauthorized');
+    }
+
+    if (action === 'login')         return jsonOk(handleLogin(payload.username, payload.password));
+    if (action === 'upsert')        return jsonOk({ row: upsert(sheet, data) });
+    if (action === 'delete')        return jsonOk({ deleted: deleteRow(sheet, id) });
+    if (action === 'deleteWhere')   return jsonOk({ deleted: deleteWhere(sheet, payload.field, payload.value) });
+    if (action === 'batchUpsert')   return jsonOk({ rows: batchUpsert(payload.operations || []) });
+    if (action === 'batchDelete')   return jsonOk({ deleted: batchDelete(payload.operations || []) });
+    if (action === 'initSheets')    return jsonOk({ message: initAllSheets() });
+    if (action === 'saveAccount')   return jsonOk({ row: handleSaveAccount(payload) });
+    if (action === 'deleteProject') return jsonOk({ deleted: deleteProjectCascade(payload.projectId) });
 
     return jsonErr('Unknown POST action: ' + action);
   } catch(err) {
@@ -453,6 +481,23 @@ function batchDelete(operations) {
   return totalDeleted;
 }
 
+// ============================================================
+// ATOMIC: Hapus proyek + semua data terkait dalam 1 request
+// Menggantikan 5 round-trip terpisah dari client
+// ============================================================
+function deleteProjectCascade(projectId) {
+  if (!projectId) throw new Error('projectId wajib diisi');
+
+  // Hapus data terkait berdasarkan project_id
+  const related = ['jsa', 'work_methods', 'procurement', 'manpower'];
+  related.forEach(sheetName => deleteWhere(sheetName, 'project_id', projectId));
+
+  // Hapus proyek itu sendiri
+  deleteRow('projects', projectId);
+
+  return true;
+}
+
 function initAllSheets() {
   const ss = _getSpreadsheet();
   Object.values(SHEETS).forEach(cfg => {
@@ -509,12 +554,25 @@ function rowToObj(headers, row) {
   return obj;
 }
 
+// ============================================================
+// KEAMANAN: Sanitasi formula injection
+// Nilai yang diawali = + - @ bisa dieksekusi sebagai formula di Google Sheets
+// ============================================================
+function sanitizeValue(v) {
+  if (typeof v !== 'string') return v;
+  const dangerous = ['=', '+', '-', '@', '\t', '\r'];
+  if (dangerous.some(c => v.startsWith(c))) {
+    return "'" + v; // Prefix apostrof → Sheets perlakukan sebagai teks literal
+  }
+  return v;
+}
+
 function objToRow(headers, obj) {
   return headers.map(h => {
     let v = obj[h];
     if (v === undefined || v === null) return '';
     if (typeof v === 'object') return JSON.stringify(v);
-    return v;
+    return sanitizeValue(String(v));
   });
 }
 
