@@ -243,16 +243,16 @@ body::before {
   pointer-events: auto;
 }
 
-/* ==================== USER INFO BAR (TOP) ==================== */
+/* ==================== USER INFO BAR ==================== */
 .user-info-bar {
   position: fixed;
   bottom: 16px;
-  right: 16px;
+  left: 20px;
   z-index: var(--z-sidebar);
   background: var(--color-dark-surface);
   border-radius: 50px;
   box-shadow: var(--shadow-lg);
-  padding: 8px 8px 8px 16px;
+  padding: 6px 6px 6px 14px;
   transition: all var(--transition-base);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255,255,255,0.1);
@@ -1087,11 +1087,32 @@ body::before {
   animation: slideIn 0.3s ease-out;
 }
 
-/* ==================== PRINT STYLES ==================== */
+/* ==================== PRINT STYLES (WARNA DIPERTAHANKAN) ==================== */
 @media print {
-  body { background: white; color: #000; font-size: 10pt; }
-  body::before { display: none !important; }
-  
+  /* --- Reset Dasar untuk Cetak --- */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    /* Properti background dan color TIDAK di-reset agar warna asli tetap muncul */
+  }
+
+  body {
+    font-size: 11pt;
+    line-height: 1.5;
+    background: white;
+    color: var(--color-text);
+  }
+
+  /* Sembunyikan background semu (back.avif) */
+  body::before {
+    display: none !important;
+  }
+
+  /* ============================================================
+     SEMBUNYIKAN ELEMEN NON-CETAK
+     ============================================================ */
   .no-print,
   .app-sidebar,
   .sidebar-overlay,
@@ -1100,26 +1121,488 @@ body::before {
   .wizard__footer,
   .btn,
   #loginContainer,
-  .app-toast-container { display: none !important; }
-  
-  .app-main-content { margin: 0 !important; padding: 0 !important; }
-  
-  .card { border: 1px solid #ccc !important; box-shadow: none !important; break-inside: avoid; }
-  
-  .report-container { padding: 0; max-width: 100%; }
-  
-  .table th { background: #f5f5f5 !important; color: #000 !important; }
-  
-  .no-screen { display: block !important; }
-  
-  .page-break { page-break-before: always; }
-  .page-break-inside-avoid { page-break-inside: avoid; }
-  
-  @page { margin: 1.5cm; size: A4; }
+  .app-toast-container,
+  .tab-nav,
+  .step-pills,
+  .nav-item,
+  #navbarLoadingSpinner,
+  .dropdown-menu,
+  .modal-backdrop,
+  .modal {
+    display: none !important;
+  }
+
+  /* ============================================================
+     LAYOUT UTAMA
+     ============================================================ */
+  .app-main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Container laporan memenuhi kertas */
+  .report-container {
+    padding: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* ============================================================
+     KARTU (CARD)
+     ============================================================ */
+  .card {
+    border: 1px solid var(--color-border) !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    margin-bottom: 1rem;
+  }
+
+  .card-header {
+    background: var(--color-dark-surface) !important;
+    color: var(--color-dark-text) !important;
+    border-bottom: 1px solid var(--color-dark-border) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .card-footer {
+    background: var(--color-bg) !important;
+    border-top: 1px solid var(--color-border) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .card-body {
+    padding: var(--spacing-md) !important;
+  }
+
+  /* ============================================================
+     TABEL
+     ============================================================ */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .table th {
+    background: var(--color-dark-surface-alt) !important;
+    color: var(--color-dark-text) !important;
+    font-weight: 600;
+    border: 1px solid var(--color-dark-border) !important;
+    padding: 8px 10px;
+    font-size: 9pt;
+    letter-spacing: 0.3px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .table td {
+    border: 1px solid var(--color-border) !important;
+    padding: 6px 10px;
+    font-size: 9pt;
+    background: var(--color-surface) !important;
+    color: var(--color-text) !important;
+  }
+
+  /* Baris bergantian untuk keterbacaan */
+  .table tbody tr:nth-child(even) td {
+    background: #fafbfc !important;
+  }
+
+  /* Hilangkan efek hover saat cetak */
+  .table--hover tbody tr:hover td {
+    background: inherit !important;
+  }
+
+  /* Pastikan input/textarea readonly terlihat natural */
+  .input-readonly-bg {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    font-weight: 600;
+  }
+
+  /* ============================================================
+     BADGE — pertahankan warna
+     ============================================================ */
+  .badge {
+    padding: 3px 10px;
+    font-weight: 600;
+    border-radius: var(--radius-xl);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .badge--risk-low {
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+  }
+
+  .badge--risk-medium {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+  }
+
+  .badge--risk-high {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+  }
+
+  .badge--risk-extreme {
+    background: #fecaca !important;
+    color: #7f1d1d !important;
+    font-weight: 700;
+  }
+
+  /* ============================================================
+     HEADER LAPORAN
+     ============================================================ */
+  .report-header {
+    border-bottom: 2px solid var(--color-text) !important;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .report-header__layout {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: start;
+  }
+
+  .report-header__left {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  .report-header__right {
+    text-align: right;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .report-header__logo-section {
+    width: 55px;
+    height: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .report-header__logo-section img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .report-header__company-info {
+    flex: 1;
+  }
+
+  .report-header__company-name {
+    font-size: 14pt;
+    font-weight: 700;
+    color: var(--color-text) !important;
+    margin-bottom: 2px;
+  }
+
+  .report-header__company-detail,
+  .report-header__company-contact {
+    font-size: 9pt;
+    color: var(--color-text-secondary) !important;
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+  }
+
+  .report-header__doc-type {
+    font-size: 13pt;
+    font-weight: 700;
+    color: var(--color-primary) !important;
+  }
+
+  .report-header__doc-number {
+    font-size: 10pt;
+    color: var(--color-text-secondary) !important;
+    font-weight: 500;
+  }
+
+  .report-header__date {
+    font-size: 9pt;
+    color: var(--color-text-muted) !important;
+    margin-top: var(--spacing-sm);
+  }
+
+  /* ============================================================
+     BAGIAN LAPORAN
+     ============================================================ */
+  .report-section-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: var(--color-primary) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    padding-bottom: var(--spacing-xs);
+    margin: 1.2rem 0 0.75rem;
+  }
+
+  .report-summary-box {
+    padding: var(--spacing-md);
+    background: var(--color-bg) !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-md);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ============================================================
+     KARTU STATISTIK MINI (LAPORAN PROYEK)
+     ============================================================ */
+  .report-stat-mini {
+    text-align: center;
+    padding: var(--spacing-md);
+    background: var(--color-surface) !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-md);
+  }
+
+  .report-stat-mini__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-bottom: var(--spacing-sm);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-stat-mini__value {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+  }
+
+  .report-stat-mini__label {
+    font-size: 8pt;
+    color: var(--color-text-muted) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  /* ============================================================
+     KARTU KEUANGAN (LAPORAN CASHFLOW)
+     ============================================================ */
+  .report-finance-card {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-finance-card__label {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .report-finance-card__value {
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .report-finance-card--info {
+    background: var(--color-primary-bg) !important;
+    border-color: var(--color-primary-light) !important;
+    color: var(--color-primary-dark) !important;
+  }
+
+  .report-finance-card--warning {
+    background: var(--color-warning-bg) !important;
+    border-color: var(--color-warning-light) !important;
+    color: #92400e !important;
+  }
+
+  .report-finance-card--success {
+    background: var(--color-success-bg) !important;
+    border-color: var(--color-success-light) !important;
+    color: #065f46 !important;
+  }
+
+  .report-finance-card--danger {
+    background: var(--color-danger-bg) !important;
+    border-color: var(--color-danger-light) !important;
+    color: #991b1b !important;
+  }
+
+  /* ============================================================
+     PROGRESS BAR
+     ============================================================ */
+  .progress {
+    height: 20px;
+    background: var(--color-bg) !important;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .progress-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white !important;
+    font-size: 9pt;
+    font-weight: 600;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ============================================================
+     KOTAK TANDA TANGAN
+     ============================================================ */
+  .signature-row {
+    display: flex;
+    gap: var(--spacing-md);
+  }
+
+  .signature-row .col-4 {
+    flex: 1;
+  }
+
+  .signature-box {
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-md);
+    text-align: center;
+  }
+
+  .signature-box__label {
+    font-weight: 600;
+    font-size: 9pt;
+    color: var(--color-text) !important;
+    margin-bottom: 2rem;
+  }
+
+  .signature-box__name {
+    font-weight: 600;
+    font-size: 9pt;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .signature-box__date {
+    font-size: 8pt;
+    color: var(--color-text-muted) !important;
+  }
+
+  /* ============================================================
+     FOOTER LAPORAN
+     ============================================================ */
+  .report-footer {
+    margin-top: 2rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border) !important;
+    font-size: 9pt;
+    color: var(--color-text-muted) !important;
+  }
+
+  .report-footer__content {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .report-footer__disclaimer {
+    font-style: italic;
+    font-size: 8pt;
+    text-align: center;
+  }
+
+  /* ============================================================
+     KONTROL HALAMAN
+     ============================================================ */
+  .page-break {
+    page-break-before: always;
+  }
+
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+  }
+
+  /* Hindari judul terpisah dari konten */
+  h5, h4, h3, .section-title, .report-section-title {
+    page-break-after: avoid;
+  }
+
+  /* Hindari baris tabel terpotong di tengah */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Hindari card terpotong di tengah */
+  .card {
+    page-break-inside: avoid;
+  }
+
+  /* ============================================================
+     GAMBAR / LOGO
+     ============================================================ */
+  img {
+    max-width: 100% !important;
+  }
+
+  /* Sembunyikan URL tambahan browser */
+  a[href]:after {
+    content: none !important;
+  }
+
+  /* ============================================================
+     PENGATURAN HALAMAN
+     ============================================================ */
+  @page {
+    margin: 1.5cm 2cm;
+    size: A4;
+  }
+
+  /* ============================================================
+     PERBAIKAN PRINT WARNA DI CHROME & BROWSER LAIN
+     ============================================================ */
+  /* Memaksa browser untuk mencetak warna latar belakang */
+  .card-header,
+  .table th,
+  .badge,
+  .report-finance-card,
+  .report-stat-mini__icon,
+  .progress-bar,
+  .bg-primary,
+  .bg-success,
+  .bg-warning,
+  .bg-danger,
+  .bg-info,
+  .bg-indigo,
+  .bg-light {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 
+/* ============================================================
+   ATURAN LAYAR UNTUK .no-screen
+   ============================================================ */
 @media screen {
-  .no-screen { display: none !important; }
+  .no-screen {
+    display: none !important;
+  }
 }
 
 /* ==================== SCROLLBAR ==================== */
