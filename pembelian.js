@@ -13,13 +13,18 @@ const ProcurementPage = {
             <option value="">Semua Proyek</option>
           </select>
         </div>
+        <div class="page-header__filter">
+          <select class="form-select" id="selectFilterPOSupplier" onchange="ProcurementPage.loadPOList()">
+            <option value="">Semua Toko/Supplier</option>
+          </select>
+        </div>
         <button class="btn btn--primary" onclick="ProcurementPage.showPOForm()"><i class="bi bi-plus-lg"></i> Item Baru</button>
       </div>
     <div id="procurementListView">
       <div class="card d-none d-md-block"><div class="card-body p-0"><div class="table-responsive">
         <table class="table table--hover mb-0">
-          <thead><tr><th>No</th><th>Proyek</th><th>Nama Material</th><th>Spesifikasi</th><th>Qty</th><th>Unit</th><th>Harga Satuan</th><th>Total</th><th>Aksi</th></tr></thead>
-          <tbody id="poTableBody"><tr><td colspan="9" class="text-center py-4">Memuat data...</td></tr></tbody>
+          <thead><tr><th>No</th><th>Proyek</th><th>Nama Material</th><th>Spesifikasi</th><th>Toko/Supplier</th><th>Qty</th><th>Unit</th><th>Harga Satuan</th><th>Total</th><th>Aksi</th></tr></thead>
+          <tbody id="poTableBody"><tr><td colspan="10" class="text-center py-4">Memuat data...</td></tr></tbody>
         </table>
       </div></div></div>
       <div id="poCardList" class="d-md-none"></div>
@@ -69,7 +74,7 @@ const ProcurementPage = {
     if (editData) {
       document.getElementById('poPageTitle').textContent = 'Edit Item Pembelian';
       this._editId = editData.id;
-      this._currentItems = [{ id:editData.id, material_name:editData.material_name||'', specification:editData.specification||'', quantity:editData.quantity||1, unit:editData.unit||'', unit_price:editData.unit_price||0, total_price:editData.total_price||0, created_at:editData.created_at }];
+      this._currentItems = [{ id:editData.id, material_name:editData.material_name||'', specification:editData.specification||'', quantity:editData.quantity||1, unit:editData.unit||'', unit_price:editData.unit_price||0, total_price:editData.total_price||0, supplier:editData.supplier||'', created_at:editData.created_at }];
     } else {
       document.getElementById('poPageTitle').textContent = 'Item Pembelian Baru';
     }
@@ -81,11 +86,14 @@ const ProcurementPage = {
     document.getElementById('poStepContent').innerHTML = `
       <div class="section-title">Informasi Proyek</div>
       <div class="row g-3 mb-4">
-        <div class="col-sm-6"><label class="form-label">Proyek <span class="text-danger">*</span></label>
+        <div class="col-sm-4"><label class="form-label">Proyek <span class="text-danger">*</span></label>
           <select class="form-select" id="selectPOProject"><option value="">-- Pilih Proyek --</option>${projOpts}</select>
         </div>
-        <div class="col-sm-6"><label class="form-label">Tanggal Pembelian</label>
+        <div class="col-sm-4"><label class="form-label">Tanggal Pembelian</label>
           <input type="date" class="form-control" id="inputPODate" value="${editData ? UtilityService.toDateInput(editData.date) : new Date().toISOString().split('T')[0]}">
+        </div>
+        <div class="col-sm-4"><label class="form-label">Toko / Supplier</label>
+          <input type="text" class="form-control" id="inputPOSupplier" value="${UtilityService.escapeHtml(editData?.supplier || '')}" placeholder="Nama toko atau supplier">
         </div>
       </div>
       <div class="section-title">Daftar Item Pembelian</div>
@@ -173,6 +181,7 @@ const ProcurementPage = {
       if (item.quantity <= 0) { UIService.showToast(`"${item.material_name}": Qty harus > 0!`, TOAST.WARNING); return; }
     }
     const poDate = document.getElementById('inputPODate')?.value || new Date().toISOString().split('T')[0];
+    const poSupplier = (document.getElementById('inputPOSupplier')?.value || '').trim();
     const now = new Date().toISOString();
     const isEdit = !!this._editId;
 
@@ -190,6 +199,7 @@ const ProcurementPage = {
           unit: item.unit,
           unit_price: item.unit_price,
           total_price: item.total_price,
+          supplier: poSupplier,
           date: poDate,
           created_at: this._currentItems[0]?.created_at || now,
           updated_at: now
@@ -207,6 +217,7 @@ const ProcurementPage = {
           unit: item.unit,
           unit_price: item.unit_price,
           total_price: item.total_price,
+          supplier: poSupplier,
           date: poDate,
           created_at: now
         }));
@@ -222,15 +233,26 @@ const ProcurementPage = {
     try {
       const [poList, projects] = await Promise.all([DataAccess.getAllPO(), DataAccess.getAllProjects()]);
       const projId = document.getElementById('selectFilterPOProject')?.value || '';
+      const supplierFilter = document.getElementById('selectFilterPOSupplier')?.value || '';
       let list = [...poList];
       if (projId) list = list.filter(po => po.project_id === projId);
+      if (supplierFilter) list = list.filter(po => (po.supplier || '') === supplierFilter);
       list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+      // Populate supplier filter dropdown from full unfiltered list
+      const supplierSel = document.getElementById('selectFilterPOSupplier');
+      if (supplierSel) {
+        const currentSupplierVal = supplierSel.value;
+        const uniqueSuppliers = [...new Set(poList.map(po => po.supplier || '').filter(Boolean))].sort();
+        supplierSel.innerHTML = '<option value="">Semua Toko/Supplier</option>' + uniqueSuppliers.map(s => `<option value="${UtilityService.escapeHtml(s)}">${UtilityService.escapeHtml(s)}</option>`).join('');
+        supplierSel.value = currentSupplierVal;
+      }
 
       const tableBody = document.getElementById('poTableBody');
       const cardList  = document.getElementById('poCardList');
 
       if (!list.length) {
-        if (tableBody) tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-5">Tidak ada item pembelian</td></tr>';
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="10" class="text-center py-5">Tidak ada item pembelian</td></tr>';
         if (cardList)  cardList.innerHTML  = '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-cart-x"></i></div><p>Tidak ada item pembelian</p></div>';
       } else {
         if (tableBody) {
@@ -241,6 +263,7 @@ const ProcurementPage = {
               <td>${UtilityService.escapeHtml(p?.name || '-')}</td>
               <td><strong>${UtilityService.escapeHtml(po.material_name || '-')}</strong></td>
               <td>${UtilityService.escapeHtml(po.specification || '-')}</td>
+              <td>${UtilityService.escapeHtml(po.supplier || '-')}</td>
               <td class="text-center">${po.quantity || 0}</td>
               <td class="text-center">${UtilityService.escapeHtml(po.unit || '-')}</td>
               <td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td>
@@ -268,6 +291,7 @@ const ProcurementPage = {
             return `<div class="card"><div class="card-body py-3">
               <div class="fw-bold">${UtilityService.escapeHtml(po.material_name || '-')}</div>
               <div style="font-size:.7rem;">${UtilityService.escapeHtml(p?.name || '-')} | ${UtilityService.escapeHtml(po.specification || '-')}</div>
+              ${po.supplier ? `<div style="font-size:.7rem;"><i class="bi bi-shop"></i> ${UtilityService.escapeHtml(po.supplier)}</div>` : ''}
               <div style="font-size:.7rem;">${po.quantity || 0} ${UtilityService.escapeHtml(po.unit || '')} | ${UtilityService.formatCurrency(po.unit_price)}</div>
               <div class="fw-semibold text-success">${UtilityService.formatCurrency(po.total_price)}</div>
               <div class="d-flex gap-2 mt-2">
@@ -297,7 +321,7 @@ const ProcurementPage = {
     try {
       const po = await DataAccess.getPOById(id);
       if (po) {
-        this._currentItems = [{ id: po.id, material_name: po.material_name || '', specification: po.specification || '', quantity: po.quantity || 1, unit: po.unit || '', unit_price: po.unit_price || 0, total_price: po.total_price || 0, created_at: po.created_at }];
+        this._currentItems = [{ id: po.id, material_name: po.material_name || '', specification: po.specification || '', quantity: po.quantity || 1, unit: po.unit || '', unit_price: po.unit_price || 0, total_price: po.total_price || 0, supplier: po.supplier || '', created_at: po.created_at }];
         this.showPOForm(po);
       }
     } catch (err) { AppError.handle(err, 'Membuka item pembelian'); }

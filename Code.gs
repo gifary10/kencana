@@ -8,7 +8,7 @@ const SHEETS = {
   work_methods: { name: 'work_methods', headers: ['id','project_id','document_number','revision','date','work_steps','prepared_by','reviewed_by','approved_by','created_at','updated_at'] },
   personnel:    { name: 'personnel',    headers: ['id','name','nik','birth_date','address','position','updated_at'] },
   manpower:     { name: 'manpower',     headers: ['id','project_id','personnel_id','updated_at'] },
-  procurement:  { name: 'procurement',  headers: ['id','project_id','material_name','specification','quantity','unit','unit_price','total_price','date','created_at','updated_at'] },
+  procurement:  { name: 'procurement',  headers: ['id','project_id','material_name','specification','quantity','unit','unit_price','total_price','supplier','date','created_at','updated_at'] },
   accounts:     { name: 'accounts',     headers: ['username','password','role','name'] },
   jadwal:       { name: 'jadwal',       headers: ['id','project_id','work_method_id','document_number','step_number','work_stage','work_process','start_date','end_date','updated_at'] },
 };

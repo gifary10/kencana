@@ -1,4 +1,4 @@
-// laporan.js — Report Page (async Google Sheets) - UPDATED with Modern Vertical Timeline
+// laporan.js — Report Page (async Google Sheets) - UPDATED with Gantt Chart Style Timeline
 const ReportPage = {
   _currentReportType: 'jsa',
   _loadedTabs: new Set(),
@@ -86,11 +86,19 @@ const ReportPage = {
       if (tab === 'jsa' && !this._data.jsa.length) {
         this._data.jsa = await DataAccess.getAllJSA();
       }
-      if ((tab === 'wm' || tab === 'schedule') && !this._data.wm.length) {
+      if (tab === 'wm' && !this._data.wm.length) {
         this._data.wm = await DataAccess.getAllWorkMethods();
       }
-      if (tab === 'schedule' && !this._data.schedule.length) {
-        this._data.schedule = await StorageService.getData('jadwal');
+      if (tab === 'schedule') {
+        if (!this._data.wm.length) {
+          this._data.wm = await DataAccess.getAllWorkMethods();
+        }
+        const projectId = document.getElementById('selectReportProject')?.value || '';
+        if (projectId) {
+          this._data.schedule = await DataAccess.getScheduleByProject(projectId);
+        } else {
+          this._data.schedule = await StorageService.getData('jadwal');
+        }
       }
       if (tab === 'po' && !this._data.po.length) {
         this._data.po = await DataAccess.getAllPO();
@@ -107,16 +115,22 @@ const ReportPage = {
   },
 
   async onProjectChange() {
+    this._loadedTabs = new Set();
+    this._data.jsa = [];
+    this._data.wm = [];
+    this._data.po = [];
+    this._data.personnel = [];
+    this._data.manpower = [];
+    this._data.schedule = [];
+
     const projectId = document.getElementById('selectReportProject')?.value || '';
     if (!projectId) {
       this.renderReport();
       return;
     }
     const tab = this._currentReportType;
-    if (!this._loadedTabs.has(tab)) {
-      await this._loadTabData(tab);
-      this._loadedTabs.add(tab);
-    }
+    await this._loadTabData(tab);
+    this._loadedTabs.add(tab);
     this.renderReport();
   },
 
@@ -173,9 +187,6 @@ const ReportPage = {
     return `<tr><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
   },
 
-  // ============================================================
-  // REPORT HEADER
-  // ============================================================
   buildReportHeader(company, title, titleIcon='bi-file-earmark-pdf') {
     if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div></div></div>`;
     return `<div class="report-header"><div class="report-header__layout">
@@ -202,9 +213,6 @@ const ReportPage = {
     return `<div class="report-footer no-screen"><div class="report-footer__content"><div class="report-footer__left"><strong>${UtilityService.escapeHtml(company.name)}</strong>${company.address?` | ${UtilityService.escapeHtml(company.address)}`:''}</div><div class="report-footer__right">${company.contact?`Telp: ${UtilityService.escapeHtml(company.contact)}`:''}${company.email?` | Email: ${UtilityService.escapeHtml(company.email)}`:''}</div></div><div class="report-footer__disclaimer">Dokumen ini dicetak dari sistem KPT Project v4.0 | Halaman ini sah tanpa tanda tangan basah</div></div>`;
   },
 
-  // ============================================================
-  // INFORMASI PROYEK
-  // ============================================================
   buildProjectInfoSection(project, includeAllFields=true) {
     if(!project) return '';
     let h=`<div class="report-section-title"><i class="bi bi-info-circle"></i> Informasi Proyek</div>
@@ -222,9 +230,6 @@ const ReportPage = {
     return h;
   },
 
-  // ============================================================
-  // LEMBAR PENGESAHAN
-  // ============================================================
   buildApprovalSection(preparedBy, reviewedBy, approvedBy) {
     return `<div class="report-section-title"><i class="bi bi-check2-square"></i> Lembar Pengesahan</div>
     <div class="row signature-row">
@@ -249,9 +254,6 @@ const ReportPage = {
     </div>`;
   },
 
-  // ============================================================
-  // MODERN VERTICAL TIMELINE SCHEDULE REPORT
-  // ============================================================
   buildScheduleReport(projectId, company) {
     const project = projectId ? this._data.projects.find(p => p.id === projectId) : null;
     
@@ -262,7 +264,6 @@ const ReportPage = {
       scheduleData = [...this._data.schedule];
     }
 
-    // Urutkan berdasarkan document number dan step number
     scheduleData.sort((a, b) => {
       if (a.document_number !== b.document_number) {
         return (a.document_number || '').localeCompare(b.document_number || '');
@@ -273,72 +274,11 @@ const ReportPage = {
     let html = '';
     html += this.buildReportHeader(company, 'JADWAL KERJA', 'bi-calendar-week');
 
-    // Informasi Proyek
     if (project) {
       html += this.buildProjectInfoSection(project, false);
     }
 
-    // Summary Stats
-    const totalItems = scheduleData.length;
-    const itemsWithDates = scheduleData.filter(s => s.start_date && s.end_date).length;
-    const completedItems = scheduleData.filter(s => {
-      if (!s.end_date) return false;
-      const end = new Date(s.end_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return end < today;
-    }).length;
-    const inProgressItems = scheduleData.filter(s => {
-      if (!s.start_date || !s.end_date) return false;
-      const start = new Date(s.start_date);
-      const end = new Date(s.end_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return start <= today && end >= today;
-    }).length;
-
-    html += `
-    <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-        <div class="report-stat-mini">
-          <div class="report-stat-mini__icon" style="background:#eff6ff;color:#3b82f6;">
-            <i class="bi bi-list-ol"></i>
-          </div>
-          <div class="report-stat-mini__value">${totalItems}</div>
-          <div class="report-stat-mini__label">Total Tahapan</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="report-stat-mini">
-          <div class="report-stat-mini__icon" style="background:#f0fdf4;color:#16a34a;">
-            <i class="bi bi-check-circle"></i>
-          </div>
-          <div class="report-stat-mini__value">${completedItems}</div>
-          <div class="report-stat-mini__label">Selesai</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="report-stat-mini">
-          <div class="report-stat-mini__icon" style="background:#fffbeb;color:#f59e0b;">
-            <i class="bi bi-arrow-repeat"></i>
-          </div>
-          <div class="report-stat-mini__value">${inProgressItems}</div>
-          <div class="report-stat-mini__label">Berlangsung</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="report-stat-mini">
-          <div class="report-stat-mini__icon" style="background:#f8fafc;color:#64748b;">
-            <i class="bi bi-calendar-check"></i>
-          </div>
-          <div class="report-stat-mini__value">${itemsWithDates}</div>
-          <div class="report-stat-mini__label">Terjadwal</div>
-        </div>
-      </div>
-    </div>`;
-
-    // Modern Vertical Timeline
-    html += `<div class="report-section-title"><i class="bi bi-clock-history"></i> Timeline Pekerjaan</div>`;
+    html += `<div class="report-section-title"><i class="bi bi-bar-chart-steps"></i> Timeline Pekerjaan</div>`;
 
     if (scheduleData.length === 0) {
       html += `<div class="flow-guard-banner">
@@ -350,7 +290,7 @@ const ReportPage = {
         </button>
       </div>`;
     } else {
-      html += this.buildModernVerticalTimeline(scheduleData, project);
+      html += this.buildGanttChart(scheduleData, project);
     }
 
     html += this.buildReportFooter(company);
@@ -358,253 +298,632 @@ const ReportPage = {
   },
 
   // ============================================================
-  // MODERN VERTICAL TIMELINE BUILDER
+  // GANTT CHART STYLE - PROFESSIONAL TIMELINE
   // ============================================================
-  buildModernVerticalTimeline(scheduleItems, project) {
+  buildGanttChart(scheduleItems, project) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    // Group by document number
-    const grouped = {};
+
+    let allDates = [];
     scheduleItems.forEach(item => {
-      const docKey = item.document_number || 'Tanpa Nomor';
-      if (!grouped[docKey]) grouped[docKey] = [];
-      grouped[docKey].push(item);
+      if (item.start_date) allDates.push(new Date(item.start_date));
+      if (item.end_date) allDates.push(new Date(item.end_date));
     });
 
-    const docColors = [
-      { bg: '#eff6ff', border: '#3b82f6', dot: '#3b82f6', icon: 'bi-file-earmark-text' },
-      { bg: '#f0fdf4', border: '#16a34a', dot: '#16a34a', icon: 'bi-file-earmark-check' },
-      { bg: '#fffbeb', border: '#f59e0b', dot: '#f59e0b', icon: 'bi-file-earmark-richtext' },
-      { bg: '#fef2f2', border: '#ef4444', dot: '#ef4444', icon: 'bi-file-earmark-medical' },
-      { bg: '#f5f3ff', border: '#8b5cf6', dot: '#8b5cf6', icon: 'bi-file-earmark-code' },
-      { bg: '#f0f9ff', border: '#0ea5e9', dot: '#0ea5e9', icon: 'bi-file-earmark-zip' },
-      { bg: '#fff1f2', border: '#e11d48', dot: '#e11d48', icon: 'bi-file-earmark-lock' },
-      { bg: '#fdf2f8', border: '#db2777', dot: '#db2777', icon: 'bi-file-earmark-person' },
-    ];
-
-    let docIndex = 0;
-    let globalIndex = 0;
-    let html = '';
-
-    // Timeline container
-    html += `<div class="modern-timeline" style="position:relative;padding-left:0;">`;
-
-    // Draw the main vertical line
-    html += `<div style="position:absolute;left:48px;top:0;bottom:0;width:3px;background:linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%);z-index:1;"></div>`;
-
-    Object.entries(grouped).forEach(([docNum, items]) => {
-      const colorScheme = docColors[docIndex % docColors.length];
+    const currentYear = today.getFullYear();
+    let chartStartDate = allDates.length > 0 ? new Date(Math.min(...allDates)) : new Date(currentYear, 0, 1);
+    let chartEndDate = allDates.length > 0 ? new Date(Math.max(...allDates)) : new Date(currentYear, 11, 31);
+    
+    chartStartDate.setDate(chartStartDate.getDate() - 1);
+    chartEndDate.setDate(chartEndDate.getDate() + 1);
+    
+    const totalDays = Math.ceil((chartEndDate - chartStartDate) / (1000 * 60 * 60 * 24)) + 1;
+    
+    const days = [];
+    let currentDayDate = new Date(chartStartDate);
+    while (currentDayDate <= chartEndDate) {
+      const dayOfWeek = currentDayDate.getDay();
+      days.push({
+        date: new Date(currentDayDate),
+        dayOfWeek: dayOfWeek,
+        isSaturday: dayOfWeek === 6,
+        isSunday: dayOfWeek === 0,
+        isWeekend: dayOfWeek === 0 || dayOfWeek === 6
+      });
+      currentDayDate.setDate(currentDayDate.getDate() + 1);
+    }
+    
+    const weeks = [];
+    let currentDate = new Date(chartStartDate);
+    while (currentDate <= chartEndDate) {
+      const weekEnd = new Date(currentDate);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      if (weekEnd > chartEndDate) weekEnd.setTime(chartEndDate.getTime());
       
-      // Document group header
-      html += `
-      <div style="position:relative;z-index:2;margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;margin-left:0;">
-          <div style="width:40px;height:40px;border-radius:50%;background:${colorScheme.bg};border:3px solid ${colorScheme.border};display:flex;align-items:center;justify-content:center;z-index:3;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-            <i class="bi ${colorScheme.icon}" style="font-size:1.1rem;color:${colorScheme.border};"></i>
-          </div>
-          <div style="flex:1;">
-            <h4 style="margin:0;font-size:1rem;font-weight:700;color:#1e293b;line-height:1.3;">
-              <i class="bi bi-diagram-3" style="color:${colorScheme.border};"></i> 
-              ${UtilityService.escapeHtml(docNum)}
-            </h4>
-            <span style="font-size:0.75rem;color:#64748b;font-weight:500;">
-              <i class="bi bi-list-ol"></i> ${items.length} tahapan
-            </span>
-          </div>
-        </div>
-      </div>`;
-
-      // Items for this document
-      items.forEach((item, idx) => {
-        globalIndex++;
-        const hasDates = item.start_date && item.end_date;
-        const startDate = item.start_date ? new Date(item.start_date) : null;
-        const endDate = item.end_date ? new Date(item.end_date) : null;
-        
-        // Determine status
-        let statusLabel = 'Belum Terjadwal';
-        let statusColor = '#94a3b8';
-        let statusBg = '#f1f5f9';
-        let statusIcon = 'bi-clock';
-        
-        if (hasDates && startDate && endDate) {
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(0, 0, 0, 0);
-          
-          if (end < today) {
-            statusLabel = 'Selesai';
-            statusColor = '#16a34a';
-            statusBg = '#f0fdf4';
-            statusIcon = 'bi-check-circle-fill';
-          } else if (start <= today && end >= today) {
-            statusLabel = 'Berlangsung';
-            statusColor = '#f59e0b';
-            statusBg = '#fffbeb';
-            statusIcon = 'bi-arrow-repeat';
-          } else if (start > today) {
-            statusLabel = 'Mendatang';
-            statusColor = '#3b82f6';
-            statusBg = '#eff6ff';
-            statusIcon = 'bi-calendar-event';
-          }
-          
-          if (start > end) {
-            statusLabel = 'Tgl Tidak Valid';
-            statusColor = '#ef4444';
-            statusBg = '#fef2f2';
-            statusIcon = 'bi-exclamation-triangle-fill';
-          }
-        }
-
-        // Calculate duration
-        let durationDisplay = '-';
-        if (startDate && endDate && startDate <= endDate) {
-          const diffTime = Math.abs(endDate - startDate);
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          durationDisplay = `${diffDays} hari`;
-        }
-
-        // Format dates
-        const startDisplay = item.start_date ? UtilityService.formatDate(item.start_date) : '—';
-        const endDisplay = item.end_date ? UtilityService.formatDate(item.end_date) : '—';
-        const startShort = item.start_date ? new Date(item.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
-        const endShort = item.end_date ? new Date(item.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
-        const yearLabel = item.start_date ? new Date(item.start_date).getFullYear() : (item.end_date ? new Date(item.end_date).getFullYear() : '');
-
-        // Timeline item
-        html += `
-        <div style="position:relative;z-index:2;margin-bottom:20px;margin-left:0;">
-          <div style="display:flex;gap:16px;">
-            <!-- Timeline dot and connector -->
-            <div style="width:40px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;">
-              <div style="width:18px;height:18px;border-radius:50%;background:${statusColor};border:3px solid #ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.15);z-index:3;margin-top:4px;"></div>
-              ${idx < items.length - 1 ? `<div style="width:2px;flex:1;background:linear-gradient(180deg, #cbd5e1 0%, #e2e8f0 100%);margin-top:-2px;"></div>` : ''}
-            </div>
-            
-            <!-- Content card -->
-            <div style="flex:1;background:#ffffff;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all 0.3s ease;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-              <!-- Card header with step number and status -->
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${colorScheme.bg};border-bottom:1px solid #e2e8f0;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                  <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:${colorScheme.border};color:white;font-weight:700;font-size:0.8rem;">
-                    ${globalIndex}
-                  </span>
-                  <div>
-                    <div style="font-weight:700;font-size:0.88rem;color:#1e293b;line-height:1.3;">
-                      ${UtilityService.escapeHtml(item.work_stage || 'Tahapan Tanpa Nama')}
-                    </div>
-                    <div style="font-size:0.72rem;color:#64748b;line-height:1.2;">
-                      ${UtilityService.escapeHtml(docNum)}
-                    </div>
-                  </div>
-                </div>
-                <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:${statusBg};color:${statusColor};font-size:0.72rem;font-weight:600;white-space:nowrap;">
-                  <i class="bi ${statusIcon}" style="font-size:0.7rem;"></i> ${statusLabel}
-                </span>
-              </div>
-              
-              <!-- Card body -->
-              <div style="padding:12px 16px;">
-                <!-- Dates row -->
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-                  <!-- Start date -->
-                  <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;">
-                    <i class="bi bi-calendar-plus" style="color:#3b82f6;font-size:0.85rem;"></i>
-                    <div>
-                      <div style="font-size:0.68rem;color:#64748b;line-height:1;">Mulai</div>
-                      <div style="font-size:0.82rem;font-weight:600;color:#1e293b;line-height:1.3;">${startShort || startDisplay}</div>
-                    </div>
-                  </div>
-                  
-                  <!-- Arrow -->
-                  <div style="color:#94a3b8;font-size:0.8rem;">
-                    <i class="bi bi-arrow-right"></i>
-                  </div>
-                  
-                  <!-- End date -->
-                  <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;">
-                    <i class="bi bi-calendar-check" style="color:#16a34a;font-size:0.85rem;"></i>
-                    <div>
-                      <div style="font-size:0.68rem;color:#64748b;line-height:1;">Selesai</div>
-                      <div style="font-size:0.82rem;font-weight:600;color:#1e293b;line-height:1.3;">${endShort || endDisplay}</div>
-                    </div>
-                  </div>
-                  
-                  <!-- Duration badge -->
-                  <div style="display:flex;align-items:center;gap:4px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:6px 10px;border-radius:8px;font-size:0.75rem;font-weight:600;margin-left:auto;">
-                    <i class="bi bi-hourglass-split" style="font-size:0.75rem;"></i>
-                    ${durationDisplay}
-                  </div>
-                </div>
-                
-                <!-- Progress bar -->
-                <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-bottom:10px;">
-                  <div style="height:100%;background:${statusColor};border-radius:3px;transition:width 0.3s ease;${
-                    statusLabel === 'Selesai' ? 'width:100%;' : 
-                    statusLabel === 'Berlangsung' && startDate && endDate ? 
-                      `width:${Math.min(100, Math.max(5, Math.round(((today - startDate) / (endDate - startDate)) * 100)))}%;` : 
-                    statusLabel === 'Mendatang' ? 'width:5%;' : 'width:0%;'
-                  }"></div>
-                </div>
-                
-                <!-- Work process description -->
-                ${item.work_process ? `
-                <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;border:1px dashed #e2e8f0;">
-                  <i class="bi bi-gear" style="color:#6366f1;font-size:0.85rem;margin-top:1px;"></i>
-                  <div>
-                    <div style="font-size:0.72rem;color:#64748b;font-weight:600;margin-bottom:2px;">PROSES / KEGIATAN</div>
-                    <div style="font-size:0.82rem;color:#334155;line-height:1.5;">
-                      ${UtilityService.escapeHtml(item.work_process)}
-                    </div>
-                  </div>
-                </div>
-                ` : `
-                <div style="padding:8px 10px;background:#f8fafc;border-radius:8px;border:1px dashed #e2e8f0;text-align:center;">
-                  <span style="font-size:0.75rem;color:#94a3b8;">
-                    <i class="bi bi-info-circle"></i> Belum ada deskripsi proses
-                  </span>
-                </div>
-                `}
-                
-                <!-- Year label if visible -->
-                ${yearLabel ? `
-                <div style="text-align:right;margin-top:8px;">
-                  <span style="font-size:0.68rem;color:#94a3b8;font-weight:500;">
-                    <i class="bi bi-dot"></i> ${yearLabel}
-                  </span>
-                </div>
-                ` : ''}
-              </div>
-            </div>
-          </div>
-        </div>`;
+      weeks.push({
+        label: currentDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+        endLabel: weekEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+        startDate: new Date(currentDate),
+        endDate: new Date(weekEnd),
+        isCurrent: today >= currentDate && today <= weekEnd
       });
       
-      docIndex++;
-    });
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
 
-    html += `</div>`; // Close modern-timeline
+    const months = [];
+    for (let d = new Date(chartStartDate); d <= chartEndDate; d.setMonth(d.getMonth() + 1)) {
+      months.push({
+        label: d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
+        startDate: new Date(d.getFullYear(), d.getMonth(), 1),
+        endDate: new Date(d.getFullYear(), d.getMonth() + 1, 0)
+      });
+    }
 
-    // Print-specific styles
+    const maxLabelLength = Math.max(...scheduleItems.map(item => {
+      const label = item.work_stage || item.work_process || 'Tahapan';
+      return label.length;
+    }), 15);
+    const labelWidth = Math.max(200, Math.min(350, maxLabelLength * 8));
+
+    let html = '';
+
     html += `
-    <style>
-      @media print {
-        .modern-timeline > div[style*="position:absolute"] {
-          background: #cbd5e1 !important;
+    <style id="ganttDynamicStyle">
+      .report-landscape-gantt {
+        /* Container untuk landscape */
+      }
+      
+      .gantt-wrapper {
+        overflow-x: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        margin-bottom: 16px;
+        max-width: 100%;
+      }
+      .gantt-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem;
+        table-layout: fixed;
+        min-width: 900px;
+      }
+      .gantt-table thead th {
+        background: #f8fafc;
+        padding: 8px 4px;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #475569;
+        text-align: center;
+        font-size: 0.68rem;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 4;
+      }
+      .gantt-table thead th.gantt-label-header {
+        text-align: left;
+        padding: 8px 12px;
+        position: sticky;
+        left: 0;
+        background: #f8fafc;
+        z-index: 6;
+        width: ${labelWidth}px;
+        min-width: ${labelWidth}px;
+        border-right: 1px solid #e2e8f0;
+      }
+      .gantt-table thead th.gantt-month-header {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #334155;
+        border-right: 1px solid #e2e8f0;
+      }
+      .gantt-table tbody td {
+        padding: 0;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+        height: 40px;
+        position: relative;
+      }
+      .gantt-table tbody tr:nth-child(even) td {
+        background: #fafbfc;
+      }
+      .gantt-table tbody tr:hover td {
+        background: #f1f5f9;
+      }
+      .gantt-task-label {
+        padding: 8px 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 500;
+        color: #334155;
+        border-right: 1px solid #e2e8f0;
+        position: sticky;
+        left: 0;
+        background: #ffffff;
+        z-index: 3;
+      }
+      .gantt-table tbody tr:nth-child(even) .gantt-task-label {
+        background: #fafbfc;
+      }
+      .gantt-table tbody tr:hover .gantt-task-label {
+        background: #f1f5f9;
+      }
+      .gantt-bar-cell {
+        position: relative;
+        border-right: none;
+      }
+      
+      .gantt-col-saturday {
+        background: rgba(253, 224, 71, 0.15) !important;
+        border-left: 1px solid rgba(253, 224, 71, 0.4) !important;
+        border-right: 1px solid rgba(253, 224, 71, 0.4) !important;
+      }
+      .gantt-col-sunday {
+        background: rgba(248, 113, 113, 0.12) !important;
+        border-left: 1px solid rgba(248, 113, 113, 0.35) !important;
+        border-right: 1px solid rgba(248, 113, 113, 0.35) !important;
+      }
+      
+      .gantt-weekend-line-saturday {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #fbbf24;
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0.7;
+      }
+      .gantt-weekend-line-sunday {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #ef4444;
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0.6;
+      }
+      
+      .gantt-bar {
+        position: absolute;
+        top: 8px;
+        height: 22px;
+        border-radius: 11px;
+        cursor: pointer;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font-size: 0.6rem;
+        font-weight: 600;
+        color: white;
+        white-space: nowrap;
+        text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        min-width: 24px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: all 0.15s ease;
+      }
+      .gantt-bar:hover {
+        box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+        z-index: 5;
+        opacity: 1 !important;
+      }
+      .gantt-bar--done {
+        background: #10b981;
+        border: 1px solid #059669;
+        opacity: 0.85;
+      }
+      .gantt-bar--active {
+        background: #f59e0b;
+        border: 1px solid #d97706;
+        opacity: 0.9;
+      }
+      .gantt-bar--upcoming {
+        background: #3b82f6;
+        border: 1px solid #2563eb;
+        opacity: 0.85;
+      }
+      .gantt-bar--no-date {
+        background: #f1f5f9;
+        border: 1px dashed #cbd5e1;
+        color: #64748b;
+        text-shadow: none;
+        opacity: 0.8;
+        cursor: default;
+        justify-content: center;
+        font-weight: 500;
+      }
+      .gantt-bar--no-date:hover {
+        opacity: 1;
+      }
+      .gantt-today-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #ef4444;
+        z-index: 6;
+        pointer-events: none;
+        opacity: 0.8;
+      }
+      .gantt-today-line::after {
+        content: '';
+        position: absolute;
+        top: -2px;
+        left: -4px;
+        width: 10px;
+        height: 10px;
+        background: #ef4444;
+        border-radius: 50%;
+      }
+      .gantt-legend {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        margin-top: 12px;
+        padding: 8px;
+        background: #f8fafc;
+        border-radius: 8px;
+        font-size: 0.72rem;
+        flex-wrap: wrap;
+      }
+      .gantt-legend__item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #64748b;
+      }
+      .gantt-legend__color {
+        width: 20px;
+        height: 12px;
+        border-radius: 6px;
+        display: inline-block;
+      }
+      
+      @media (max-width: 768px) {
+        .gantt-table thead th.gantt-label-header {
+          width: 140px;
+          min-width: 140px;
         }
-        .modern-timeline [style*="border-radius:50%"] {
+        .gantt-task-label {
+          width: 140px;
+          min-width: 140px;
+          font-size: 0.7rem;
+        }
+        .gantt-bar {
+          font-size: 0.55rem;
+          padding: 0 6px;
+          height: 18px;
+          top: 10px;
+        }
+      }
+      
+      @media print {
+        /* ORIENTASI LANDSCAPE KHUSUS UNTUK HALAMAN JADWAL */
+        @page {
+          size: A4 landscape;
+          margin: 1cm 1.5cm;
+        }
+        
+        body {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
-        .modern-timeline [style*="border-radius:12px"] {
+        
+        /* Sembunyikan elemen yang tidak diperlukan */
+        .no-print,
+        .app-sidebar,
+        .sidebar-overlay,
+        .user-info-bar,
+        .wizard__header,
+        .wizard__footer,
+        .btn,
+        #loginContainer,
+        .app-toast-container,
+        .tab-nav,
+        .step-pills,
+        .nav-item,
+        #navbarLoadingSpinner,
+        .dropdown-menu,
+        .modal-backdrop,
+        .modal,
+        .page-header__filter,
+        #reportTabs,
+        .page-header,
+        .hamburger-btn { 
+          display: none !important; 
+        }
+        
+        .app-main-content { 
+          margin: 0 !important; 
+          padding: 0 !important; 
+          width: 100% !important; 
+        }
+        
+        .report-container { 
+          padding: 0; 
+          max-width: 100%; 
+          width: 100%; 
+        }
+        
+        .gantt-wrapper {
+          overflow-x: visible;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: none !important;
+        }
+        
+        .gantt-table {
+          font-size: 0.65rem;
+          min-width: auto;
+          width: 100%;
+        }
+        
+        .gantt-table thead th {
+          padding: 6px 2px;
+          font-size: 0.6rem;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-table thead th.gantt-label-header {
+          padding: 6px 8px;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-table tbody td {
+          height: 34px;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-task-label {
+          padding: 6px 8px;
+          font-size: 0.62rem;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-bar {
+          height: 18px;
+          top: 7px;
+          font-size: 0.55rem;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-weekend-line-saturday {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          background: #fbbf24 !important;
+        }
+        
+        .gantt-weekend-line-sunday {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          background: #ef4444 !important;
+        }
+        
+        .gantt-today-line {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-legend {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          font-size: 0.65rem;
+          padding: 6px;
+        }
+        
+        .card {
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: none !important;
           break-inside: avoid;
-          page-break-inside: avoid;
+          margin-bottom: 0.8rem;
+        }
+        
+        .card-header {
+          background: #1e293b !important;
+          color: #f1f5f9 !important;
+          border-bottom: 1px solid #334155 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          padding: 0.5rem 0.75rem;
+        }
+        
+        .report-header {
+          border-bottom: 2px solid #0f172a !important;
+          margin-bottom: 1rem;
+          padding-bottom: 0.5rem;
+        }
+        
+        .report-section-title {
+          font-size: 0.9rem;
+          font-weight: 700;
+          color: #1e3a8a !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          padding-bottom: 0.25rem;
+          margin: 0.8rem 0 0.5rem;
+        }
+        
+        .report-stat-mini {
+          border: 1px solid #e2e8f0 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .badge {
+          padding: 2px 8px;
+          font-weight: 600;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .table th {
+          background: #0f172a !important;
+          color: #f1f5f9 !important;
+          border: 1px solid #e2e8f0 !important;
+          padding: 6px 8px;
+          font-size: 0.7rem;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .table td {
+          border: 1px solid #e2e8f0 !important;
+          padding: 5px 8px;
+          font-size: 0.7rem;
+          background: #ffffff !important;
+          color: #0f172a !important;
+        }
+        
+        .report-footer {
+          border-top: 1px solid #e2e8f0 !important;
+          color: #94a3b8 !important;
+          font-size: 0.6rem;
+        }
+        
+        img { max-width: 100% !important; }
+        a[href]:after { content: none !important; }
+      }
+      
+      /* Style khusus landscape untuk tampilan screen */
+      @media screen and (min-width: 1024px) {
+        .report-landscape-gantt .gantt-wrapper {
+          max-height: calc(100vh - 300px);
+          overflow-y: auto;
         }
       }
-    </style>`;
+    </style>
+
+    <div class="report-landscape-gantt">
+      <div class="gantt-wrapper">
+        <table class="gantt-table">
+          <thead>
+            <tr>
+              <th class="gantt-label-header" rowspan="2">Tahapan Pekerjaan</th>`;
+    
+    months.forEach(month => {
+      const monthDays = days.filter(d => d.date >= month.startDate && d.date <= month.endDate);
+      const colspan = monthDays.length;
+      if (colspan > 0) {
+        html += `<th class="gantt-month-header" colspan="${colspan}">${month.label}</th>`;
+      }
+    });
+    
+    html += `</tr></thead><tbody>`;
+
+    scheduleItems.forEach((item, idx) => {
+      const taskLabel = item.work_stage || item.work_process || 'Tahapan';
+      
+      let barClass = 'gantt-bar--upcoming';
+      if (item.start_date && item.end_date) {
+        const start = new Date(item.start_date); start.setHours(0,0,0,0);
+        const end = new Date(item.end_date); end.setHours(0,0,0,0);
+        if (end < today) barClass = 'gantt-bar--done';
+        else if (start <= today && end >= today) barClass = 'gantt-bar--active';
+      } else {
+        barClass = 'gantt-bar--no-date';
+      }
+
+      const itemStart = item.start_date ? new Date(item.start_date) : null;
+      const itemEnd = item.end_date ? new Date(item.end_date) : null;
+      
+      if (itemStart) itemStart.setHours(0,0,0,0);
+      if (itemEnd) itemEnd.setHours(0,0,0,0);
+      
+      const chartStart = new Date(chartStartDate); chartStart.setHours(0,0,0,0);
+      
+      let leftPercent = 0;
+      let widthPercent = 0;
+      let barLabel = '';
+      
+      if (itemStart && itemEnd) {
+        const startOffset = Math.max(0, (itemStart - chartStart) / (1000 * 60 * 60 * 24));
+        const duration = (itemEnd - itemStart) / (1000 * 60 * 60 * 24) + 1;
+        
+        leftPercent = (startOffset / totalDays) * 100;
+        widthPercent = Math.max(2, (duration / totalDays) * 100);
+        
+        const startLabel = itemStart.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        const endLabel = itemEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        barLabel = `${startLabel} — ${endLabel}`;
+      } else {
+        leftPercent = 5;
+        widthPercent = 90;
+        barLabel = 'Belum dijadwalkan';
+      }
+
+      html += `<tr>`;
+      
+      html += `
+        <td class="gantt-task-label" title="${UtilityService.escapeHtml(taskLabel)}">
+          <div style="font-weight:600;color:#1e293b;font-size:0.78rem;overflow:hidden;text-overflow:ellipsis;">${idx + 1}. ${UtilityService.escapeHtml(taskLabel)}</div>
+        </td>`;
+
+      html += `
+        <td class="gantt-bar-cell" colspan="${days.length}" style="position:relative;">`;
+
+      days.forEach((day, dayIdx) => {
+        const dayLeftPercent = (dayIdx / totalDays) * 100;
+        if (day.isSaturday) {
+          html += `<div class="gantt-weekend-line-saturday" style="left:${dayLeftPercent}%;width:${(1/totalDays)*100}%;"></div>`;
+        }
+        if (day.isSunday) {
+          html += `<div class="gantt-weekend-line-sunday" style="left:${dayLeftPercent}%;width:${(1/totalDays)*100}%;"></div>`;
+        }
+      });
+
+      const todayOffset = (today - chartStart) / (1000 * 60 * 60 * 24);
+      if (todayOffset >= 0 && todayOffset <= totalDays) {
+        html += `<div class="gantt-today-line" style="left:${(todayOffset / totalDays) * 100}%;"></div>`;
+      }
+
+      html += `
+          <div class="gantt-bar ${barClass}" 
+               style="left:${leftPercent}%; width:${widthPercent}%;"
+               title="${itemStart && itemEnd ? itemStart.toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) + ' — ' + itemEnd.toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : 'Belum dijadwalkan'}">
+            ${barLabel}
+          </div>
+        </td>`;
+
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table></div>
+
+    <div class="gantt-legend">
+      <div class="gantt-legend__item">
+        <span class="gantt-legend__color" style="background:#10b981;"></span> Selesai
+      </div>
+      <div class="gantt-legend__item">
+        <span class="gantt-legend__color" style="background:#f59e0b;"></span> Berlangsung
+      </div>
+      <div class="gantt-legend__item">
+        <span class="gantt-legend__color" style="background:#3b82f6;"></span> Mendatang
+      </div>
+      <div class="gantt-legend__item">
+        <span class="gantt-legend__color" style="background:#f1f5f9; border:1px dashed #cbd5e1;"></span> Belum dijadwalkan
+      </div>
+      <div class="gantt-legend__item">
+        <span style="display:inline-block;width:2px;height:12px;background:#fbbf24;border-radius:1px;"></span> Sabtu
+      </div>
+      <div class="gantt-legend__item">
+        <span style="display:inline-block;width:2px;height:12px;background:#ef4444;border-radius:1px;"></span> Minggu
+      </div>
+      <div class="gantt-legend__item">
+        <span style="display:inline-block;width:2px;height:12px;background:#ef4444;border-radius:1px;opacity:0.8;"></span> Hari ini
+      </div>
+    </div>
+    </div>`;
 
     return html;
   },
@@ -735,6 +1054,7 @@ const ReportPage = {
       <th class="col-width-30">No</th>
       <th>Nama Material</th>
       <th>Spesifikasi</th>
+      <th>Toko / Supplier</th>
       <th class="col-width-50">Qty</th>
       <th class="col-width-50">Unit</th>
       <th class="col-width-100">Harga Satuan</th>
@@ -747,6 +1067,7 @@ const ReportPage = {
         <td class="text-center">${i+1}</td>
         <td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td>
         <td>${UtilityService.escapeHtml(po.specification||'-')}</td>
+        <td>${UtilityService.escapeHtml(po.supplier||'-')}</td>
         <td class="text-center">${po.quantity||0}</td>
         <td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td>
         <td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td>
@@ -756,7 +1077,7 @@ const ReportPage = {
     });
     
     html+=`</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;">
-      <td colspan="6" class="text-end">TOTAL KESELURUHAN:</td>
+      <td colspan="7" class="text-end">TOTAL KESELURUHAN:</td>
       <td class="text-end"><strong class="text-success">${UtilityService.formatCurrency(grandTotal)}</strong></td>
       <td></td>
     </tr></tfoot></table>`;
@@ -780,7 +1101,8 @@ const ReportPage = {
         const totalPO = poList.reduce((s, p) => s + (p.total_price || 0), 0);
         const budget = project.contract_value || 0;
         const remaining = budget - totalPO;
-        const pct = budget > 0 ? Math.round((totalPO / budget) * 100) : 0;
+        const pct = budget > 0 ? Math.round((totalPO / budget) * 100) : (totalPO > 0 ? 100 : 0);
+        const pctDisplay = budget > 0 ? `${pct}%` : (totalPO > 0 ? 'Melebihi Anggaran' : '0%');
         totalBudget += budget;
         totalSpent += totalPO;
 
@@ -808,8 +1130,8 @@ const ReportPage = {
               </div>
             </div>`;
         html += `<div class="progress progress--md mb-3">
-              <div class="progress-bar" style="width:${Math.min(pct, 100)}%;background:${pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981'}">
-                <strong>${pct}%</strong>
+              <div class="progress-bar" style="width:${Math.max(3, Math.min(pct, 100))}%;background:${pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981'};min-width:40px;">
+                <strong>${pctDisplay}</strong>
               </div>
             </div>`;
         html += `<table class="table table-bordered table-sm"><tbody>
@@ -817,7 +1139,7 @@ const ReportPage = {
               ${this.createReportRow('Client', UtilityService.escapeHtml(project.client))}
               ${this.createReportRow('Nilai Kontrak', UtilityService.formatCurrency(budget))}
               ${this.createReportRow('Total Pengeluaran', UtilityService.formatCurrency(totalPO))}
-              ${this.createReportRow('Persentase Penggunaan', `${pct}%`)}
+              ${this.createReportRow('Persentase Penggunaan', pctDisplay)}
               ${this.createReportRow('Sisa Anggaran', `<strong class="${remaining >= 0 ? 'text-success' : 'text-danger'}">${UtilityService.formatCurrency(remaining)}</strong>`)}
             </tbody></table>`;
         html += `</div>`;
@@ -825,7 +1147,8 @@ const ReportPage = {
 
       if (!projectId && projects.length > 1) {
         const totalRem = totalBudget - totalSpent;
-        const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+        const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : (totalSpent > 0 ? 100 : 0);
+        const totalPctDisplay = totalBudget > 0 ? `${totalPct}%` : (totalSpent > 0 ? 'Melebihi Anggaran' : '0%');
         html += `<div class="page-break-inside-avoid">
               <div class="report-section-title"><i class="bi bi-pie-chart"></i> Rekapitulasi Seluruh Proyek</div>
               <div class="row g-3 mb-3">
@@ -849,8 +1172,8 @@ const ReportPage = {
                 </div>
               </div>
               <div class="progress progress--md mb-3">
-                <div class="progress-bar" style="width:${Math.min(totalPct, 100)}%;background:${totalPct > 80 ? '#ef4444' : totalPct > 50 ? '#f59e0b' : '#10b981'}">
-                  <strong>${totalPct}%</strong>
+                <div class="progress-bar" style="width:${Math.max(3, Math.min(totalPct, 100))}%;background:${totalPct > 80 ? '#ef4444' : totalPct > 50 ? '#f59e0b' : '#10b981'};min-width:40px;">
+                  <strong>${totalPctDisplay}</strong>
                 </div>
               </div>
             </div>`;
