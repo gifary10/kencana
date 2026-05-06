@@ -1,8 +1,8 @@
-// laporan.js — Report Page (async Google Sheets)
+// laporan.js — Report Page (async Google Sheets) - UPDATED with Timeline Chart from Schedule Data (No Status Labels)
 const ReportPage = {
   _currentReportType: 'jsa',
   _loadedTabs: new Set(),
-  _data: { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null },
+  _data: { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null, schedule:[] },
 
   render() {
     return `
@@ -37,7 +37,7 @@ const ReportPage = {
 
   async init() {
     this._loadedTabs = new Set();
-    this._data = { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null };
+    this._data = { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null, schedule:[] };
 
     const [projects, company] = await Promise.all([
       DataAccess.getAllProjects(),
@@ -53,7 +53,7 @@ const ReportPage = {
     }
 
     if (!projects.length) {
-      document.getElementById('reportOutput').innerHTML = UIService.showFlowBanner(
+      document.getElementById('reportOutput').innerHTML = this.showFlowBanner(
         'bi-clipboard-plus', 'Belum Ada Proyek',
         'Buat proyek terlebih dahulu sebelum mencetak laporan.',
         '<i class="bi bi-clipboard-data"></i> Buat Proyek',
@@ -70,6 +70,15 @@ const ReportPage = {
     this.renderReport(); // akan tampilkan banner "pilih proyek" karena belum ada yang dipilih
   },
 
+  showFlowBanner(icon, title, message, buttonLabel, buttonAction) {
+    return `<div class="flow-guard-banner">
+      <div class="flow-guard-banner__icon"><i class="bi ${icon}"></i></div>
+      <h5 class="flow-guard-banner__title">${title}</h5>
+      <p class="flow-guard-banner__description">${message}</p>
+      <button class="btn btn--primary no-print" onclick="${buttonAction}">${buttonLabel}</button>
+    </div>`;
+  },
+
   async _loadTabData(tab) {
     const reportEl = document.getElementById('reportOutput');
     if (reportEl) reportEl.innerHTML = '<div class="report-container"><div class="empty-state"><p>Memuat data…</p></div></div>';
@@ -80,6 +89,10 @@ const ReportPage = {
       }
       if ((tab === 'wm' || tab === 'schedule') && !this._data.wm.length) {
         this._data.wm = await DataAccess.getAllWorkMethods();
+      }
+      // Load data jadwal dari sheet jadwal
+      if (tab === 'schedule' && !this._data.schedule.length) {
+        this._data.schedule = await StorageService.getData('jadwal');
       }
       if (tab === 'po' && !this._data.po.length) {
         this._data.po = await DataAccess.getAllPO();
@@ -167,7 +180,7 @@ const ReportPage = {
   },
 
   createReportRow(label, value) {
-    return `<tr><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
+    return `<td><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
   },
 
   // ============================================================
@@ -247,41 +260,25 @@ const ReportPage = {
   },
 
   // ============================================================
-  // SCHEDULE REPORT WITH TIMELINE CHART
+  // SCHEDULE REPORT WITH TIMELINE CHART - SEMUA DATA DARI SCHEDULE SHEET
   // ============================================================
   buildScheduleReport(projectId, company) {
     const project = projectId ? this._data.projects.find(p => p.id === projectId) : null;
-    let wmList = [...this._data.wm];
-    if (projectId) wmList = wmList.filter(w => w.project_id === projectId);
     
-    // Kumpulkan semua schedule data dari work methods
-    const scheduleItems = [];
-    wmList.forEach(wm => {
-      if (wm.work_steps && Array.isArray(wm.work_steps)) {
-        wm.work_steps.forEach((step, i) => {
-          const startDate = step.start_date || '';
-          const endDate = step.end_date || '';
-          scheduleItems.push({
-            id: `sch_${wm.id}_${i}`,
-            documentNumber: wm.document_number || 'Tanpa Nomor',
-            stepNumber: step.step_number || (i + 1),
-            workStage: step.work_stage || '',
-            tools: step.tools || '',
-            workProcess: step.work_process || '',
-            startDate: startDate,
-            endDate: endDate,
-            projectId: wm.project_id
-          });
-        });
-      }
-    });
+    // Ambil data JADWAL dari sheet jadwal — INI SATU-SATUNYA SUMBER DATA UNTUK TIMELINE
+    let scheduleData = [];
+    if (projectId) {
+      scheduleData = this._data.schedule.filter(s => s.project_id === projectId);
+    } else {
+      scheduleData = [...this._data.schedule];
+    }
 
     // Urutkan berdasarkan document number dan step number
-    scheduleItems.sort((a, b) => {
-      if (a.documentNumber !== b.documentNumber) {
-        return a.documentNumber.localeCompare(b.documentNumber);
+    scheduleData.sort((a, b) => {
+      if (a.document_number !== b.document_number) {
+        return (a.document_number || '').localeCompare(b.document_number || '');
       }
-      return a.stepNumber - b.stepNumber;
+      return (parseInt(a.step_number) || 0) - (parseInt(b.step_number) || 0);
     });
 
     let html = '';
@@ -294,23 +291,13 @@ const ReportPage = {
 
     // Timeline Chart Container
     html += `
-    <div class="report-section-title">
-      <i class="bi bi-bar-chart-steps"></i> Timeline Chart
+    <div class="report-section-title" id="timelineChartTitle">
+      <i class="bi bi-bar-chart-steps"></i> Timeline Pekerjaan
     </div>
     <div class="card mb-4 no-print" id="timelineChartCard">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <div>
-            <span style="font-size:.75rem;color:var(--color-text-muted);">
-              <span class="badge bg-success me-1">&nbsp;</span> Selesai
-              <span class="badge bg-warning me-1">&nbsp;</span> Berlangsung
-              <span class="badge bg-info me-1">&nbsp;</span> Mendatang
-              <span class="badge bg-secondary me-1">&nbsp;</span> Belum Diatur
-            </span>
-          </div>
-        </div>
-        <div id="timelineChart" style="overflow-x:auto;overflow-y:auto;max-height:600px;">
-          <p class="text-center text-muted py-4">Memuat timeline...</p>
+        <div id="timelineChart" style="overflow-x:auto;overflow-y:auto;">
+          <div id="timelineCanvasWrapper"></div>
         </div>
       </div>
     </div>`;
@@ -324,42 +311,53 @@ const ReportPage = {
       <table class="table table-bordered table-sm">
         <thead>
           <tr>
-            <th class="col-width-40 text-center">No</th>
+            <th class="text-center" style="width:40px;">No</th>
+            <th>Dokumen</th>
             <th>Tahapan Kerja</th>
             <th>Proses / Kegiatan</th>
-            <th class="text-center col-width-110">Tanggal Mulai</th>
-            <th class="text-center col-width-110">Tanggal Selesai</th>
-            <th class="text-center col-width-80">Durasi (Hari)</th>
+            <th class="text-center" style="width:110px;">Tanggal Mulai</th>
+            <th class="text-center" style="width:110px;">Tanggal Selesai</th>
+            <th class="text-center" style="width:80px;">Durasi (Hari)</th>
           </tr>
         </thead>
         <tbody>`;
 
-    if (scheduleItems.length === 0) {
-      html += `<tr><td colspan="6" class="text-center text-muted py-4">Tidak ada data jadwal kerja</td></tr>`;
+    if (scheduleData.length === 0) {
+      html += `<tr><td colspan="7" class="text-center text-muted py-4">Tidak ada data jadwal kerja. Silakan buat Jadwal Kerja terlebih dahulu melalui menu Jadwal Kerja.</td></tr>`;
     } else {
-      scheduleItems.forEach((item, index) => {
-        const hasDates = item.startDate && item.endDate;
-        const dateValid = hasDates && new Date(item.startDate) <= new Date(item.endDate);
+      let validScheduleCount = 0;
+      scheduleData.forEach((item, index) => {
+        const hasDates = item.start_date && item.end_date;
+        const dateValid = hasDates && new Date(item.start_date) <= new Date(item.end_date);
         
         let duration = '-';
         if (dateValid) {
-          const start = new Date(item.startDate);
-          const end = new Date(item.endDate);
+          const start = new Date(item.start_date);
+          const end = new Date(item.end_date);
           const diffTime = Math.abs(end - start);
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
           duration = diffDays + ' hari';
+          validScheduleCount++;
         }
 
         html += `
           <tr>
             <td class="text-center">${index + 1}</td>
-            <td>${UtilityService.escapeHtml(item.workStage || '—')}</td>
-            <td style="font-size:.78rem;">${UtilityService.escapeHtml(item.workProcess || '—')}</td>
-            <td class="text-center">${item.startDate ? UtilityService.formatDate(item.startDate) : '—'}</td>
-            <td class="text-center">${item.endDate ? UtilityService.formatDate(item.endDate) : '—'}</td>
+            <td>${UtilityService.escapeHtml(item.document_number || '—')}</td>
+            <td>${UtilityService.escapeHtml(item.work_stage || '—')}</td>
+            <td style="font-size:.78rem;">${UtilityService.escapeHtml(item.work_process || '—')}</td>
+            <td class="text-center">${item.start_date ? UtilityService.formatDate(item.start_date) : '—'}</td>
+            <td class="text-center">${item.end_date ? UtilityService.formatDate(item.end_date) : '—'}</td>
             <td class="text-center">${duration}</td>
           </tr>`;
       });
+      
+      // Tambahkan catatan jika tidak ada jadwal dengan tanggal valid
+      if (validScheduleCount === 0 && scheduleData.length > 0) {
+        html += `<tr><td colspan="7" class="text-center text-warning py-2" style="background:#fffbeb;">
+          <i class="bi bi-exclamation-triangle"></i> Tidak ada jadwal dengan tanggal yang lengkap. Silakan isi tanggal mulai dan selesai pada setiap tahapan pekerjaan.
+        </td></tr>`;
+      }
     }
 
     html += `
@@ -371,238 +369,271 @@ const ReportPage = {
     return html;
   },
 
-  // Render Timeline Chart menggunakan Canvas
+  // ============================================================
+  // RENDER TIMELINE CHART — 100% BERDASARKAN DATA DARI SHEET JADWAL
+  // TANPA STATUS (BERLANGSUNG, SELESAI, MENDATANG) - FOKUS HANYA TAHAPAN & TIMELINE
+  // ============================================================
   renderTimelineChart(projectId) {
     const chartContainer = document.getElementById('timelineChart');
+    const chartTitle = document.getElementById('timelineChartTitle');
     if (!chartContainer) return;
 
-    let wmList = [...this._data.wm];
-    if (projectId) wmList = wmList.filter(w => w.project_id === projectId);
-
-    // Kumpulkan schedule items dengan tanggal
-    const scheduleItems = [];
-    wmList.forEach(wm => {
-      if (wm.work_steps && Array.isArray(wm.work_steps)) {
-        wm.work_steps.forEach((step, i) => {
-          if (step.start_date && step.end_date) {
-            scheduleItems.push({
-              id: `sch_${wm.id}_${i}`,
-              documentNumber: wm.document_number || 'Tanpa Nomor',
-              stepNumber: step.step_number || (i + 1),
-              workStage: step.work_stage || '',
-              startDate: step.start_date,
-              endDate: step.end_date
-            });
-          }
-        });
-      }
+    // Ambil data proyek yang sedang dipilih (hanya untuk info nama proyek)
+    const project = this._data.projects.find(p => p.id === projectId);
+    
+    // AMBIL DATA JADWAL DARI SHEET JADWAL — INI SATU-SATUNYA SUMBER
+    let scheduleItems = this._data.schedule.filter(s => s.project_id === projectId);
+    
+    // Filter hanya yang memiliki tanggal mulai dan selesai VALID
+    const validItems = scheduleItems.filter(s => {
+      if (!s.start_date || !s.end_date) return false;
+      const start = new Date(s.start_date);
+      const end = new Date(s.end_date);
+      return !isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end;
     });
 
-    if (scheduleItems.length === 0) {
-      chartContainer.innerHTML = '<p class="text-center text-muted py-4">Tidak ada data jadwal dengan tanggal yang lengkap untuk ditampilkan dalam timeline.</p>';
+    if (validItems.length === 0) {
+      chartContainer.innerHTML = `
+        <div class="flow-guard-banner" style="padding:1rem;">
+          <div class="flow-guard-banner__icon"><i class="bi bi-calendar-x"></i></div>
+          <h5 class="flow-guard-banner__title">Belum Ada Jadwal dengan Tanggal Lengkap</h5>
+          <p class="flow-guard-banner__description">Silakan buka menu <strong>Jadwal Kerja</strong> dan isi tanggal mulai dan selesai untuk setiap tahapan pekerjaan.</p>
+          <button class="btn btn--primary" onclick="UIService.navigate('jadwal')">
+            <i class="bi bi-calendar-week"></i> Buka Jadwal Kerja
+          </button>
+        </div>`;
       return;
     }
 
-    // Cari rentang tanggal
+    // ============================================================
+    // TENTUKAN RENTANG WAKTU CHART BERDASARKAN DATA JADWAL TERKECIL DAN TERBESAR
+    // ============================================================
     let minDate = null;
     let maxDate = null;
-    scheduleItems.forEach(item => {
-      const start = new Date(item.startDate);
-      const end = new Date(item.endDate);
+    
+    validItems.forEach(item => {
+      const start = new Date(item.start_date);
+      const end = new Date(item.end_date);
       if (!minDate || start < minDate) minDate = start;
       if (!maxDate || end > maxDate) maxDate = end;
     });
+    
+    // Jika proyek memiliki tanggal proyek, gunakan sebagai patokan tambahan
+    if (project && project.start_date && project.end_date) {
+      const projStart = new Date(project.start_date);
+      const projEnd = new Date(project.end_date);
+      if (projStart < minDate) minDate = projStart;
+      if (projEnd > maxDate) maxDate = projEnd;
+    }
+    
+    if (!minDate || !maxDate) {
+      chartContainer.innerHTML = '<p class="text-center text-muted py-4">Tidak dapat menentukan rentang waktu.</p>';
+      return;
+    }
 
-    // Tambah padding 3 hari di kiri dan kanan
-    minDate = new Date(minDate);
-    minDate.setDate(minDate.getDate() - 3);
-    maxDate = new Date(maxDate);
-    maxDate.setDate(maxDate.getDate() + 3);
+    // Tambah padding 7 hari di kiri dan kanan agar lebih nyaman dilihat
+    minDate.setDate(minDate.getDate() - 7);
+    maxDate.setDate(maxDate.getDate() + 7);
+    
+    // Pastikan minDate <= maxDate
+    if (minDate > maxDate) {
+      const temp = minDate;
+      minDate = maxDate;
+      maxDate = temp;
+    }
 
     const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
-
-    // Siapkan canvas
-    const rowHeight = 36;
-    const leftMargin = 200;
-    const rightMargin = 20;
-    const topMargin = 30;
-    const bottomMargin = 10;
-    const barHeight = 20;
-    const canvasWidth = Math.max(leftMargin + totalDays * 4 + rightMargin, 800);
-    const canvasHeight = topMargin + scheduleItems.length * rowHeight + bottomMargin;
-
-    chartContainer.innerHTML = `
-      <canvas id="timelineCanvas" width="${canvasWidth}" height="${canvasHeight}" 
-              style="min-width:100%;"></canvas>`;
-
+    
+    // Konfigurasi canvas
+    const rowHeight = 38;
+    const leftMargin = 210;
+    const rightMargin = 30;
+    const topMargin = 45;
+    const bottomMargin = 20;
+    const barHeight = 22;
+    const colWidth = 5; // pixel per hari
+    
+    const canvasWidth = Math.max(leftMargin + totalDays * colWidth + rightMargin, 900);
+    const canvasHeight = topMargin + validItems.length * rowHeight + bottomMargin;
+    
+    // Buat wrapper untuk canvas
+    const wrapper = document.getElementById('timelineCanvasWrapper') || document.createElement('div');
+    wrapper.id = 'timelineCanvasWrapper';
+    wrapper.innerHTML = `
+      <div style="overflow-x:auto;border:1px solid var(--color-border);border-radius:8px;background:#fff;">
+        <canvas id="timelineCanvas" width="${canvasWidth}" height="${canvasHeight}" 
+                style="display:block;min-width:100%;"></canvas>
+      </div>`;
+    chartContainer.innerHTML = '';
+    chartContainer.appendChild(wrapper);
+    
     const canvas = document.getElementById('timelineCanvas');
     if (!canvas) return;
-
+    
     const ctx = canvas.getContext('2d');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    
     // Clear canvas
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    // Draw header background
+    
+    // Background putih
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // ============================================================
+    // DRAW HEADER BACKGROUND
+    // ============================================================
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(0, 0, canvasWidth, topMargin);
-
-    // Draw month labels
+    
+    // ============================================================
+    // DRAW MONTH LABELS
+    // ============================================================
     ctx.fillStyle = '#f1f5f9';
     ctx.font = 'bold 10px Inter, sans-serif';
     ctx.textAlign = 'left';
-
+    
     let currentMonth = null;
     let monthStartX = leftMargin;
-
-    for (let d = 0; d < totalDays; d++) {
+    
+    for (let d = 0; d <= totalDays; d++) {
       const date = new Date(minDate);
       date.setDate(date.getDate() + d);
       const monthKey = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
       
       if (monthKey !== currentMonth) {
         if (currentMonth !== null) {
-          const monthWidth = leftMargin + d * 4 - monthStartX;
+          const monthWidth = leftMargin + d * colWidth - monthStartX;
           if (monthWidth > 40) {
-            ctx.fillText(currentMonth, monthStartX + 4, 18);
+            ctx.fillText(currentMonth, monthStartX + 4, 20);
           }
         }
         currentMonth = monthKey;
-        monthStartX = leftMargin + d * 4;
+        monthStartX = leftMargin + d * colWidth;
       }
     }
-    if (currentMonth && leftMargin + totalDays * 4 - monthStartX > 40) {
-      ctx.fillText(currentMonth, monthStartX + 4, 18);
+    if (currentMonth && leftMargin + totalDays * colWidth - monthStartX > 40) {
+      ctx.fillText(currentMonth, monthStartX + 4, 20);
     }
-
-    // Draw grid lines and date markers
+    
+    // ============================================================
+    // DRAW DATE MARKERS (setiap 7 hari)
+    // ============================================================
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '8px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    
+    for (let d = 0; d <= totalDays; d += 7) {
+      const date = new Date(minDate);
+      date.setDate(date.getDate() + d);
+      const x = leftMargin + d * colWidth;
+      ctx.fillText(date.getDate(), x, topMargin - 8);
+    }
+    
+    // ============================================================
+    // DRAW GRID VERTICAL LINES
+    // ============================================================
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 0.5;
-
+    
     for (let d = 0; d <= totalDays; d++) {
-      const x = leftMargin + d * 4;
-      
+      const x = leftMargin + d * colWidth;
       ctx.beginPath();
       ctx.moveTo(x, topMargin);
       ctx.lineTo(x, canvasHeight);
       ctx.stroke();
-
-      if (d % 7 === 0 && d < totalDays) {
-        const date = new Date(minDate);
-        date.setDate(date.getDate() + d);
-        ctx.fillStyle = '#475569';
-        ctx.font = '8px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(date.getDate(), x, topMargin - 6);
-      }
     }
-
-    // Draw today line
-    if (today >= minDate && today <= maxDate) {
-      const todayX = leftMargin + Math.ceil((today - minDate) / (1000 * 60 * 60 * 24)) * 4;
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(todayX, topMargin);
-      ctx.lineTo(todayX, canvasHeight);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = '#ef4444';
-      ctx.font = 'bold 9px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('HARI INI', todayX, topMargin - 12);
-    }
-
-    // Draw horizontal row backgrounds
-    for (let i = 0; i < scheduleItems.length; i++) {
+    
+    // ============================================================
+    // DRAW ROW BACKGROUNDS (zebra)
+    // ============================================================
+    for (let i = 0; i < validItems.length; i++) {
       const y = topMargin + i * rowHeight;
       ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f8fafc';
       ctx.fillRect(0, y, canvasWidth, rowHeight);
     }
-
-    // Draw labels
-    ctx.fillStyle = '#0f172a';
+    
+    // ============================================================
+    // DRAW ROW LABELS (Nama Tahapan Kerja)
+    // ============================================================
     ctx.font = 'bold 9px Inter, sans-serif';
     ctx.textAlign = 'right';
-
-    for (let i = 0; i < scheduleItems.length; i++) {
+    
+    for (let i = 0; i < validItems.length; i++) {
       const y = topMargin + i * rowHeight;
-      const label = scheduleItems[i].workStage.length > 28 
-        ? scheduleItems[i].workStage.substring(0, 26) + '...' 
-        : scheduleItems[i].workStage;
+      const item = validItems[i];
       
+      // Nomor dokumen (lebih kecil)
       ctx.fillStyle = '#64748b';
       ctx.font = '7px Inter, sans-serif';
-      ctx.fillText(scheduleItems[i].documentNumber, leftMargin - 8, y + 12);
+      ctx.fillText(item.document_number || '', leftMargin - 8, y + 11);
       
+      // Nama tahapan kerja
+      let label = item.work_stage || '';
+      if (label.length > 28) label = label.substring(0, 26) + '...';
       ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 9px Inter, sans-serif';
-      ctx.fillText(label, leftMargin - 8, y + 26);
-
+      ctx.font = 'bold 8px Inter, sans-serif';
+      ctx.fillText(label, leftMargin - 8, y + 25);
+      
+      // Grid horizontal
       ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(0, y + rowHeight - 1);
       ctx.lineTo(canvasWidth, y + rowHeight - 1);
       ctx.stroke();
     }
-
-    // Draw bars
-    for (let i = 0; i < scheduleItems.length; i++) {
-      const item = scheduleItems[i];
-      const startDate = new Date(item.startDate);
-      const endDate = new Date(item.endDate);
+    
+    // ============================================================
+    // DRAW BARS (GANTT BARS) — WARNA BIRU KONSISTEN (TIDAK ADA STATUS)
+    // ============================================================
+    const barColor = '#3b82f6'; // Warna biru konsisten untuk semua bar
+    
+    for (let i = 0; i < validItems.length; i++) {
+      const item = validItems[i];
+      const startDate = new Date(item.start_date);
+      const endDate = new Date(item.end_date);
+      
+      // Hitung posisi bar
+      const startDay = Math.ceil((startDate - minDate) / (1000 * 60 * 60 * 24));
+      const endDay = Math.ceil((endDate - minDate) / (1000 * 60 * 60 * 24));
+      const barStartX = leftMargin + startDay * colWidth;
+      const barEndX = leftMargin + endDay * colWidth + colWidth;
+      const barWidth = Math.max(barEndX - barStartX, colWidth + 4);
       const y = topMargin + i * rowHeight + (rowHeight - barHeight) / 2;
-      const x1 = leftMargin + Math.ceil((startDate - minDate) / (1000 * 60 * 60 * 24)) * 4;
-      const x2 = leftMargin + Math.ceil((endDate - minDate) / (1000 * 60 * 60 * 24)) * 4 + 4;
-      const barWidth = Math.max(x2 - x1, 6);
       const radius = 4;
-
-      let barColor;
-      if (endDate < today) {
-        barColor = '#16a34a';
-      } else if (startDate <= today && endDate >= today) {
-        barColor = '#f59e0b';
-      } else {
-        barColor = '#3b82f6';
-      }
-
+      
+      // Draw rounded rectangle dengan warna konsisten
       ctx.fillStyle = barColor;
       ctx.beginPath();
-      ctx.moveTo(x1 + radius, y);
-      ctx.lineTo(x1 + barWidth - radius, y);
-      ctx.quadraticCurveTo(x1 + barWidth, y, x1 + barWidth, y + radius);
-      ctx.lineTo(x1 + barWidth, y + barHeight - radius);
-      ctx.quadraticCurveTo(x1 + barWidth, y + barHeight, x1 + barWidth - radius, y + barHeight);
-      ctx.lineTo(x1 + radius, y + barHeight);
-      ctx.quadraticCurveTo(x1, y + barHeight, x1, y + barHeight - radius);
-      ctx.lineTo(x1, y + radius);
-      ctx.quadraticCurveTo(x1, y, x1 + radius, y);
+      ctx.moveTo(barStartX + radius, y);
+      ctx.lineTo(barStartX + barWidth - radius, y);
+      ctx.quadraticCurveTo(barStartX + barWidth, y, barStartX + barWidth, y + radius);
+      ctx.lineTo(barStartX + barWidth, y + barHeight - radius);
+      ctx.quadraticCurveTo(barStartX + barWidth, y + barHeight, barStartX + barWidth - radius, y + barHeight);
+      ctx.lineTo(barStartX + radius, y + barHeight);
+      ctx.quadraticCurveTo(barStartX, y + barHeight, barStartX, y + barHeight - radius);
+      ctx.lineTo(barStartX, y + radius);
+      ctx.quadraticCurveTo(barStartX, y, barStartX + radius, y);
       ctx.closePath();
       ctx.fill();
-
-      if (barWidth > 80) {
+      
+      // Tampilkan label tanggal jika bar cukup lebar
+      if (barWidth > 70) {
         ctx.fillStyle = '#ffffff';
-        ctx.font = '7px Inter, sans-serif';
+        ctx.font = 'bold 7px Inter, sans-serif';
         ctx.textAlign = 'center';
         const startLabel = startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
         const endLabel = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-        const midX = x1 + barWidth / 2;
-        ctx.fillText(`${startLabel} - ${endLabel}`, midX, y + barHeight - 5);
+        const midX = barStartX + barWidth / 2;
+        ctx.fillText(`${startLabel} - ${endLabel}`, midX, y + barHeight - 6);
+      } else if (barWidth > 35) {
+        // Hanya tampilkan ikon tanggal
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 6px Inter, sans-serif';
+        const midX = barStartX + barWidth / 2;
+        ctx.fillText('📅', midX, y + barHeight - 6);
       }
     }
-
-    const legendHtml = `
-      <div style="display:flex;gap:16px;justify-content:center;margin-top:8px;font-size:.75rem;color:var(--color-text-secondary);">
-        <span><span style="display:inline-block;width:16px;height:12px;background:#16a34a;border-radius:3px;margin-right:4px;"></span> Selesai</span>
-        <span><span style="display:inline-block;width:16px;height:12px;background:#f59e0b;border-radius:3px;margin-right:4px;"></span> Berlangsung</span>
-        <span><span style="display:inline-block;width:16px;height:12px;background:#3b82f6;border-radius:3px;margin-right:4px;"></span> Mendatang</span>
-      </div>`;
-    chartContainer.insertAdjacentHTML('beforeend', legendHtml);
   },
 
   // ============================================================
@@ -642,7 +673,7 @@ const ReportPage = {
       const hazards=jsa.hazard_identification||[];
       html+=`<div class="report-section-title"><i class="bi bi-exclamation-triangle"></i> 2. Identifikasi Bahaya & Pengendalian Risiko</div>
       <table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>Tahapan Pekerjaan</th><th>Potensi Bahaya</th><th>Dampak</th><th>Pengendalian Risiko</th></tr></thead><tbody>`;
-      if(hazards.length) hazards.forEach((h,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(h.step||'-')}</td><td>${UtilityService.escapeHtml(h.danger||'-')}</td><td>${UtilityService.escapeHtml(h.impact||'-')}</td><td>${UtilityService.escapeHtml(h.control||'-')}</td></tr>`; });
+      if(hazards.length) hazards.forEach((h,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(h.step||'-')}</td><td>${UtilityService.escapeHtml(h.danger||'-')}</td><td>${UtilityService.escapeHtml(h.impact||'-')}</td><td>${UtilityService.escapeHtml(h.control||'-')}</td>`; });
       else html+=`<tr><td colspan="5" class="text-center text-muted">Tidak ada data identifikasi bahaya</td></tr>`;
       html+=`</tbody></table>`;
       
@@ -703,7 +734,7 @@ const ReportPage = {
       const steps=wm.work_steps||[];
       html+=`<div class="report-section-title"><i class="bi bi-list-ol"></i> 1. Uraian Langkah Kerja</div>
       <table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>Tahapan Kerja</th><th>Alat Kerja</th><th>Proses / Kegiatan Pekerjaan</th></tr></thead><tbody>`;
-      if(steps.length) steps.forEach((s,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(s.work_stage||'-')}</td><td>${UtilityService.escapeHtml(s.tools||'-')}</td><td>${UtilityService.escapeHtml(s.work_process||'-')}</td></tr>`; });
+      if(steps.length) steps.forEach((s,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(s.work_stage||'-')}</td><td>${UtilityService.escapeHtml(s.tools||'-')}</td><td>${UtilityService.escapeHtml(s.work_process||'-')}</td>`; });
       else html+=`<tr><td colspan="4" class="text-center text-muted">Tidak ada langkah kerja</td></tr>`;
       html+=`</tbody></table>`;
       
@@ -963,7 +994,8 @@ const ReportPage = {
       });
       html += '</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;">'
         + '<td colspan="2" class="text-end">Total Personel Unik:</td>'
-        + '<td class="text-center">' + totalWorkers + '</td></tr></tfoot></table>';
+        + '<td class="text-center">' + totalWorkers + '</td>'
+        + '</tr></tfoot></table>';
       html += '</div>';
     }
 
