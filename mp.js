@@ -33,7 +33,7 @@ const ManpowerPage = {
     return `
     <div id="manpowerView">
       <div class="page-header no-print">
-        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-people"></i></span>Man Power</h2>
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-building-gear"></i></span>KPT Project Management Portal</h2>
       </div>
       <div class="tab-nav no-print" id="manpowerTabNav">
         <button class="tab-nav__btn tab-nav__btn--active" onclick="ManpowerPage.switchTab('assign')">
@@ -46,14 +46,12 @@ const ManpowerPage = {
 
       <!-- ====== TAB PENUGASAN ====== -->
       <div id="tabAssign">
-        <div class="card no-print">
-          <div class="card-body p-3">
-            <label class="form-label mb-1 fw-semibold">Pilih Proyek</label>
-            <select class="form-select" id="selectManpowerProject"
-              onchange="ManpowerPage.onProjectChange()" style="max-width:420px;">
-              <option value="">-- Pilih Proyek --</option>
-            </select>
-          </div>
+        <div class="page-header__filter mb-3 no-print">
+          <label class="form-label mb-1 fw-semibold">Pilih Proyek</label>
+          <select class="form-select" id="selectManpowerProject"
+            onchange="ManpowerPage.onProjectChange()" style="max-width:420px;">
+            <option value="">-- Pilih Proyek --</option>
+          </select>
         </div>
         <div id="manpowerAssignContent">
           <div class="empty-state">
@@ -285,16 +283,18 @@ const ManpowerPage = {
   async saveAssignment() {
     const projectId = document.getElementById('selectManpowerProject')?.value;
     if (!projectId) { UIService.showToast('Pilih proyek terlebih dahulu!', 'warning'); return; }
-    
+
     const personnel_ids = [...document.querySelectorAll('.mp-assign-check:checked')]
       .map(cb => cb.dataset.personnelId);
-    
-    // OPTIMASI: Gunakan fungsi yang sudah menggunakan batch upsert
-    await DataAccess.saveManpower({ project_id: projectId, personnel_ids });
-    
-    this._assignments[projectId] = new Set(personnel_ids);
-    this._updateAssignCount();
-    UIService.showToast('Penugasan disimpan — ' + personnel_ids.length + ' personel.', 'success');
+
+    try {
+      await DataAccess.saveManpower({ project_id: projectId, personnel_ids });
+      this._assignments[projectId] = new Set(personnel_ids);
+      this._updateAssignCount();
+      UIService.showToast('Penugasan disimpan — ' + personnel_ids.length + ' personel.', 'success');
+    } catch (err) {
+      AppError.handle(err, 'Menyimpan penugasan manpower');
+    }
   },
 
   // ======================================================
@@ -324,9 +324,7 @@ const ManpowerPage = {
         : '<span class="text-muted" style="font-size:.75rem;">—</span>';
       return '<tr>'
         + '<td class="text-center text-muted" style="font-size:.78rem;">' + (i+1) + '</td>'
-        + '<td><strong>' + UtilityService.escapeHtml(p.name) + '</strong>'
-        + (p.nik ? '<br><small class="text-muted">' + UtilityService.escapeHtml(p.nik) + '</small>' : '')
-        + '</td>'
+        + '<td><strong>' + UtilityService.escapeHtml(p.name) + '</strong></td>'
         + '<td class="text-muted" style="font-size:.78rem;">' + (p.nik ? UtilityService.escapeHtml(p.nik) : '—') + '</td>'
         + '<td>' + (p.birth_date ? this._fmtDate(p.birth_date) : '—') + '</td>'
         + '<td><span class="badge bg-info text-dark">' + this._calcAge(p.birth_date) + '</span></td>'
@@ -367,7 +365,7 @@ const ManpowerPage = {
     document.getElementById('editPersonnelId').value         = p.id;
     document.getElementById('inputPersonnelName').value      = p.name     || '';
     document.getElementById('inputPersonnelNik').value       = p.nik      || '';
-    document.getElementById('inputPersonnelBirthDate').value = p.birth_date || '';
+    document.getElementById('inputPersonnelBirthDate').value = UtilityService.toDateInput(p.birth_date);
     document.getElementById('displayPersonnelAge').value     = this._calcAge(p.birth_date);
     document.getElementById('inputPersonnelAddress').value   = p.address  || '';
     document.getElementById('inputPersonnelPosition').value  = p.position || '';

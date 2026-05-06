@@ -12,19 +12,20 @@
 </head>
 <body>
 
-<!-- Sidebar Navigation -->
+<button class="hamburger-btn no-print" id="hamburgerBtn" onclick="AppNavbar.toggleSidebar()" aria-label="Buka menu">
+  <i class="bi bi-list"></i>
+</button>
+
 <nav class="app-sidebar no-print" id="appSidebar">
   <div class="app-sidebar__header">
     <div class="app-sidebar__brand">
       <img src="logo1.png" alt="KPT Logo" class="app-sidebar__logo">
     </div>
   </div>
-  
   <div class="app-sidebar__nav">
     <a href="#dashboard" class="nav-item" data-route="dashboard">
       <span class="nav-item__icon"><i class="bi bi-speedometer2"></i></span> Dashboard
     </a>
-    <div class="nav-section-label">Manajemen</div>
     <a href="#perusahaan" class="nav-item" data-route="perusahaan">
       <span class="nav-item__icon"><i class="bi bi-building"></i></span> Perusahaan
     </a>
@@ -37,32 +38,32 @@
     <a href="#jsa" class="nav-item" data-route="jsa">
       <span class="nav-item__icon"><i class="bi bi-journal-check"></i></span> JSA
     </a>
+    <a href="#jadwal" class="nav-item" data-route="jadwal">
+      <span class="nav-item__icon"><i class="bi bi-calendar-week"></i></span> Jadwal Kerja
+    </a>
     <a href="#manpower" class="nav-item" data-route="manpower">
       <span class="nav-item__icon"><i class="bi bi-people"></i></span> Man Power
     </a>
-    <div class="nav-section-label">Logistik & Laporan</div>
     <a href="#pembelian" class="nav-item" data-route="pembelian">
       <span class="nav-item__icon"><i class="bi bi-cart"></i></span> Cost Project
     </a>
     <a href="#laporan" class="nav-item" data-route="laporan">
       <span class="nav-item__icon"><i class="bi bi-file-earmark-pdf"></i></span> Laporan
     </a>
-    <div class="nav-section-label" id="navSectionAdmin" style="display:none;">Pengaturan</div>
     <a href="#akun" class="nav-item" data-route="akun" id="navItemAkun" style="display:none;">
       <span class="nav-item__icon"><i class="bi bi-people-fill"></i></span> Manajemen Akun
     </a>
   </div>
 </nav>
 
-<!-- Overlay for mobile sidebar -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="AppNavbar.closeSidebar()"></div>
 
-<!-- Loading Spinner -->
-<div id="navbarLoadingSpinner" style="display:none; position:fixed; top:16px; right:16px; z-index:9999;">
-  <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+<div id="navbarLoadingSpinner" style="display:none; position:fixed; bottom:10px; right:10px; z-index:9999; width:60px; height:60px; pointer-events:none;">
+  <video autoplay loop muted playsinline style="width:100%;height:100%;border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+    <source src="loading.webm" type="video/webm">
+  </video>
 </div>
 
-<!-- User Info Bar -->
 <div class="user-info-bar no-print" id="userInfoBar">
   <div class="user-info-bar__content">
     <div class="user-info-bar__details">
@@ -77,10 +78,8 @@
   </div>
 </div>
 
-<!-- Main Content Area -->
 <main class="app-main-content" id="appMainContent"></main>
 
-<!-- Project Detail Modal -->
 <div class="modal fade" id="projectDetailModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -94,28 +93,21 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- config & constants -->
 <script src="config.js" defer></script>
 <script src="constants.js" defer></script>
-
-<!-- core services -->
+<script src="cache.js" defer></script>
 <script src="db.js" defer></script>
 <script src="error-handler.js" defer></script>
-
-<!-- page modules — harus SEBELUM main.js -->
+<script src="dashboard.js" defer></script>
 <script src="perusahaan.js" defer></script>
 <script src="proyek.js" defer></script>
 <script src="metode.js" defer></script>
 <script src="jsa.js" defer></script>
+<script src="jadwal.js" defer></script>
 <script src="mp.js" defer></script>
 <script src="pembelian.js" defer></script>
 <script src="laporan.js" defer></script>
-
-<!-- auth -->
 <script src="login.js" defer></script>
-
-<!-- main — dipindah ke paling akhir -->
 <script src="main.js" defer></script>
 </body>
 </html>

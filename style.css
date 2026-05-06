@@ -1,34 +1,24 @@
-/* ==================== CSS VARIABLES ==================== */
 :root {
-  --z-bg:             -1;
-  --z-content:         1;
-  --z-input-icon:      2;
-  --z-sidebar:       100;
-  --z-overlay:       200;
-  --z-dropdown:      400;
-  --z-modal-backdrop:500;
-  --z-modal:         600;
-  --z-toast:         700;
-  --z-login:         800;
+  --z-bg: -1;
+  --z-content: 1;
+  --z-input-icon: 2;
+  --z-sidebar: 100;
+  --z-overlay: 200;
+  --z-dropdown: 400;
+  --z-modal-backdrop: 500;
+  --z-modal: 600;
+  --z-toast: 700;
+  --z-login: 800;
 
-  /* =========================
-     PRIMARY (Modern Navy)
-     ========================= */
   --color-primary: #1e3a8a;
   --color-primary-light: #3b82f6;
   --color-primary-dark: #172554;
   --color-primary-bg: #eff6ff;
 
-  /* =========================
-     SECONDARY (Cool Navy Gray)
-     ========================= */
   --color-secondary: #475569;
   --color-secondary-light: #94a3b8;
   --color-secondary-dark: #334155;
 
-  /* =========================
-     DARK THEME COLORS (Sidebar, Card Header, Table Header)
-     ========================= */
   --color-dark-surface: #1e293b;
   --color-dark-surface-alt: #0f172a;
   --color-dark-border: #334155;
@@ -36,9 +26,6 @@
   --color-dark-text-secondary: #94a3b8;
   --color-dark-hover: #334155;
 
-  /* =========================
-     STATUS COLORS (Balanced)
-     ========================= */
   --color-success: #16a34a;
   --color-success-light: #4ade80;
   --color-success-bg: #f0fdf4;
@@ -55,54 +42,44 @@
   --color-info-light: #38bdf8;
   --color-info-bg: #f0f9ff;
 
-  /* =========================
-     NEUTRAL (Soft Navy UI)
-     ========================= */
   --color-bg: #f8fafc;
   --color-surface: #ffffff;
   --color-border: #e2e8f0;
   --color-border-light: #f1f5f9;
-
   --color-text: #0f172a;
   --color-text-secondary: #475569;
   --color-text-muted: #94a3b8;
 
-  /* Sidebar */
   --sidebar-width: 200px;
 
-  /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-size-base: 0.875rem;
+  --font-size-sm: 0.78rem;
   --font-size-md: 0.95rem;
   --font-size-lg: 1.1rem;
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
   
-  /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
   --spacing-xl: 2rem;
   
-  /* Border Radius */
   --radius-sm: 0.5rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.5rem;
 
-  /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
   --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1);
 
-  /* Transitions */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
   --transition-slow: 350ms ease;
 }
 
-/* ==================== BASE STYLES ==================== */
 * {
   margin: 0;
   padding: 0;
@@ -120,7 +97,6 @@ body {
   position: relative;
 }
 
-/* Background Image */
 body::before {
   content: '';
   position: fixed;
@@ -138,7 +114,6 @@ body::before {
   pointer-events: none;
 }
 
-/* ==================== SIDEBAR ==================== */
 .app-sidebar {
   position: fixed;
   top: 0;
@@ -178,17 +153,6 @@ body::before {
   overflow-y: auto;
 }
 
-/* Sidebar Navigation Section Labels */
-.nav-section-label {
-  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm);
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--color-dark-text-secondary);
-}
-
-/* Sidebar Navigation Items */
 .nav-item {
   display: flex;
   align-items: center;
@@ -225,7 +189,6 @@ body::before {
   font-size: 1.1rem;
 }
 
-/* Sidebar Overlay */
 .sidebar-overlay {
   position: fixed;
   inset: 0;
@@ -243,7 +206,6 @@ body::before {
   pointer-events: auto;
 }
 
-/* ==================== USER INFO BAR ==================== */
 .user-info-bar {
   position: fixed;
   bottom: 16px;
@@ -268,11 +230,6 @@ body::before {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-}
-
-.user-info-bar__text {
-  display: flex;
-  flex-direction: column;
 }
 
 .user-info-bar__name {
@@ -310,7 +267,6 @@ body::before {
   transform: scale(1.05);
 }
 
-/* Main Content */
 .app-main-content {
   margin-left: var(--sidebar-width);
   padding: var(--spacing-md);
@@ -319,7 +275,6 @@ body::before {
   position: relative;
 }
 
-/* ==================== COMPONENTS: CARDS, BUTTONS, TABLES, FORMS ==================== */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -334,7 +289,6 @@ body::before {
   box-shadow: var(--shadow-md);
 }
 
-/* Card Header */
 .card-header {
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-dark-surface);
@@ -357,7 +311,6 @@ body::before {
   border-top: 1px solid var(--color-border);
 }
 
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -400,13 +353,11 @@ body::before {
 .btn--ghost:hover { background: var(--color-bg); }
 .btn--xs { padding: 4px 8px; font-size: var(--font-size-base); }
 
-/* ==================== TABLE STYLES ==================== */
 .table {
   width: 100%;
   border-collapse: collapse;
 }
 
-/* Table Header */
 .table th {
   background: var(--color-dark-surface-alt);
   padding: var(--spacing-sm) var(--spacing-md);
@@ -435,12 +386,8 @@ body::before {
 .table-bordered td { border: 1px solid var(--color-border); }
 .table-sm th,
 .table-sm td { padding: 8px var(--spacing-sm); }
-.table-responsive {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-/* Form Elements */
 .form-label {
   display: block;
   margin-bottom: var(--spacing-xs);
@@ -457,9 +404,9 @@ body::before {
   border-radius: var(--radius-md);
   font-size: var(--font-size-base);
   font-family: var(--font-family);
-  transition: all var(--transition-fast);
   background: var(--color-surface);
   color: var(--color-text);
+  transition: all var(--transition-fast);
 }
 
 .form-control:focus,
@@ -481,7 +428,6 @@ body::before {
 }
 .input-search input { padding-left: 32px; }
 
-/* ==================== COMPONENTS: STATS, BADGES, PAGE HEADER, EMPTY STATE ==================== */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -553,25 +499,61 @@ body::before {
   gap: var(--spacing-md);
 }
 
-.page-title {
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  color: var(--color-text);
+.page-header__left {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
 }
 
+.page-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  white-space: nowrap;
+}
+
 .page-title__icon {
-  width: 40px;
-  height: 40px;
-  background: var(--color-primary-bg);
   color: var(--color-primary);
-  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
+}
+
+.page-header__filter {
+  flex: 0 1 auto;
+  min-width: 240px;
+  max-width: 360px;
+  position: relative;
+}
+
+.page-header__filter .form-select {
+  padding: 10px 10px 10px 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.page-header__filter .form-select:hover {
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-md);
+}
+
+.page-header__filter .form-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
 }
 
 .empty-state {
@@ -582,7 +564,6 @@ body::before {
 .empty-state__icon { font-size: 3rem; margin-bottom: var(--spacing-md); opacity: 0.5; }
 .empty-state p { font-size: var(--font-size-base); margin: 0; }
 
-/* ==================== COMPONENTS: WIZARD, STEPS, SECTIONS ==================== */
 .wizard {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -667,7 +648,6 @@ body::before {
   gap: var(--spacing-sm);
 }
 
-/* ==================== COMPONENTS: FLOW / LIST / APD / HIRADC / PERMIT ==================== */
 .flow-guard-banner {
   text-align: center;
   padding: var(--spacing-xl);
@@ -718,9 +698,9 @@ body::before {
 .list-item__body { flex: 1; min-width: 0; }
 .list-item__icon--warning { background: rgba(248,181,0,.08); color: var(--color-warning); }
 .list-item__icon--success { background: rgba(16,185,129,.08); color: var(--color-success); }
-.list-item__icon--primary { background: var(--color-primary-bg);  color: var(--color-primary); }
-.list-item__icon--info    { background: var(--color-info-bg);     color: var(--color-info); }
-.list-item__icon--danger  { background: var(--color-danger-bg);   color: var(--color-danger); }
+.list-item__icon--primary { background: var(--color-primary-bg); color: var(--color-primary); }
+.list-item__icon--info { background: var(--color-info-bg); color: var(--color-info); }
+.list-item__icon--danger { background: var(--color-danger-bg); color: var(--color-danger); }
 
 .apd-category-grid {
   display: grid;
@@ -781,7 +761,11 @@ body::before {
   resize: vertical;
 }
 .hiradc-table textarea:focus,
-.hiradc-table input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+.hiradc-table input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+}
 
 .permit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-md); }
 .permit-item {
@@ -800,7 +784,6 @@ body::before {
 .permit-item__icon { font-size: 1.2rem; }
 .permit-item__label { font-weight: 500; }
 
-/* ==================== COMPONENTS: REPORT ==================== */
 .report-container { background: white; padding: var(--spacing-xl); max-width: 826px; margin: 0 auto; }
 .report-header { margin-bottom: var(--spacing-xl); padding-bottom: var(--spacing-md); border-bottom: 2px solid var(--color-text); }
 .report-header__layout { display: flex; gap: var(--spacing-md); align-items: start; }
@@ -833,7 +816,6 @@ body::before {
 .report-header__company-name { font-size: var(--font-size-lg); font-weight: 700; color: var(--color-text); margin-bottom: var(--spacing-xs); }
 .report-header__company-detail,
 .report-header__company-contact { font-size: var(--font-size-base); color: var(--color-text-secondary); display: flex; gap: var(--spacing-md); flex-wrap: wrap; }
-.report-header__doc-info { text-align: right; min-width: 200px; }
 .report-header__doc-type { font-size: var(--font-size-lg); font-weight: 700; color: var(--color-primary); }
 .report-header__doc-number { font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: 500; }
 .report-header__date { font-size: var(--font-size-base); color: var(--color-text-muted); margin-top: var(--spacing-sm); }
@@ -869,6 +851,10 @@ body::before {
 .report-finance-card--danger { background: var(--color-danger-bg); border-color: var(--color-danger-light); color: #991b1b; }
 
 .report-footer { margin-top: var(--spacing-xl); padding-top: var(--spacing-md); border-top: 1px solid var(--color-border); font-size: var(--font-size-base); color: var(--color-text-muted); }
+.report-footer__content { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.report-footer__disclaimer { font-style: italic; font-size: 8pt; text-align: center; }
+.report-footer__left,
+.report-footer__right { font-size: 9pt; }
 
 .signature-box { padding: var(--spacing-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); text-align: center; }
 .signature-box__label { font-weight: 600; font-size: var(--font-size-base); margin-bottom: var(--spacing-xl); color: var(--color-text); }
@@ -878,7 +864,6 @@ body::before {
 .signature-row { display: flex; gap: var(--spacing-md); }
 .signature-row .col-4 { flex: 1; }
 
-/* ==================== PAGES: LOGIN ==================== */
 #loginContainer {
   position: fixed;
   inset: 0;
@@ -1003,7 +988,6 @@ body::before {
 
 .login-footer { text-align: center; margin-top: var(--spacing-md); font-size: var(--font-size-base); color: var(--color-text-muted); }
 
-/* ==================== COMPONENTS: MODAL, PROGRESS, TABS ==================== */
 .modal-content { border: none; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); }
 .modal-header { padding: var(--spacing-md) var(--spacing-md); border-bottom: 1px solid var(--color-border); background: var(--color-bg); }
 .modal-title { font-weight: 600; display: flex; align-items: center; gap: var(--spacing-sm); }
@@ -1029,7 +1013,6 @@ body::before {
 .tab-nav__btn:hover { color: var(--color-primary); }
 .tab-nav__btn--active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
 
-/* ==================== UTILITIES ==================== */
 .text-danger { color: var(--color-danger); }
 .text-success { color: var(--color-success); }
 .text-warning { color: var(--color-warning); }
@@ -1066,7 +1049,6 @@ body::before {
 .col-width-110 { width: 110px; }
 .col-width-130 { width: 130px; }
 
-/* ==================== TOAST COMPONENT ==================== */
 .app-toast-container {
   position: fixed;
   top: 16px;
@@ -1087,32 +1069,18 @@ body::before {
   animation: slideIn 0.3s ease-out;
 }
 
-/* ==================== PRINT STYLES (WARNA DIPERTAHANKAN) ==================== */
 @media print {
-  /* --- Reset Dasar untuk Cetak --- */
-  *,
-  *::before,
-  *::after {
-    box-shadow: none !important;
-    text-shadow: none !important;
-    /* Properti background dan color TIDAK di-reset agar warna asli tetap muncul */
-  }
-
+  *, *::before, *::after { box-shadow: none !important; text-shadow: none !important; }
+  
   body {
     font-size: 11pt;
     line-height: 1.5;
     background: white;
     color: var(--color-text);
   }
-
-  /* Sembunyikan background semu (back.avif) */
-  body::before {
-    display: none !important;
-  }
-
-  /* ============================================================
-     SEMBUNYIKAN ELEMEN NON-CETAK
-     ============================================================ */
+  
+  body::before { display: none !important; }
+  
   .no-print,
   .app-sidebar,
   .sidebar-overlay,
@@ -1128,36 +1096,19 @@ body::before {
   #navbarLoadingSpinner,
   .dropdown-menu,
   .modal-backdrop,
-  .modal {
-    display: none !important;
-  }
-
-  /* ============================================================
-     LAYOUT UTAMA
-     ============================================================ */
-  .app-main-content {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-  }
-
-  /* Container laporan memenuhi kertas */
-  .report-container {
-    padding: 0;
-    max-width: 100%;
-    width: 100%;
-  }
-
-  /* ============================================================
-     KARTU (CARD)
-     ============================================================ */
+  .modal,
+  .page-header__filter { display: none !important; }
+  
+  .app-main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  .report-container { padding: 0; max-width: 100%; width: 100%; }
+  
   .card {
     border: 1px solid var(--color-border) !important;
     box-shadow: none !important;
     break-inside: avoid;
     margin-bottom: 1rem;
   }
-
+  
   .card-header {
     background: var(--color-dark-surface) !important;
     color: var(--color-dark-text) !important;
@@ -1165,26 +1116,18 @@ body::before {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
+  
   .card-footer {
     background: var(--color-bg) !important;
     border-top: 1px solid var(--color-border) !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
-  .card-body {
-    padding: var(--spacing-md) !important;
-  }
-
-  /* ============================================================
-     TABEL
-     ============================================================ */
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
+  
+  .card-body { padding: var(--spacing-md) !important; }
+  
+  .table { width: 100%; border-collapse: collapse; }
+  
   .table th {
     background: var(--color-dark-surface-alt) !important;
     color: var(--color-dark-text) !important;
@@ -1192,11 +1135,10 @@ body::before {
     border: 1px solid var(--color-dark-border) !important;
     padding: 8px 10px;
     font-size: 9pt;
-    letter-spacing: 0.3px;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
+  
   .table td {
     border: 1px solid var(--color-border) !important;
     padding: 6px 10px;
@@ -1204,28 +1146,11 @@ body::before {
     background: var(--color-surface) !important;
     color: var(--color-text) !important;
   }
-
-  /* Baris bergantian untuk keterbacaan */
-  .table tbody tr:nth-child(even) td {
-    background: #fafbfc !important;
-  }
-
-  /* Hilangkan efek hover saat cetak */
-  .table--hover tbody tr:hover td {
-    background: inherit !important;
-  }
-
-  /* Pastikan input/textarea readonly terlihat natural */
-  .input-readonly-bg {
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    font-weight: 600;
-  }
-
-  /* ============================================================
-     BADGE — pertahankan warna
-     ============================================================ */
+  
+  .table tbody tr:nth-child(even) td { background: #fafbfc !important; }
+  .table--hover tbody tr:hover td { background: inherit !important; }
+  .input-readonly-bg { border: none !important; background: transparent !important; padding: 0 !important; font-weight: 600; }
+  
   .badge {
     padding: 3px 10px;
     font-weight: 600;
@@ -1233,115 +1158,30 @@ body::before {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
-  .badge--risk-low {
-    background: #d1fae5 !important;
-    color: #065f46 !important;
-  }
-
-  .badge--risk-medium {
-    background: #fef3c7 !important;
-    color: #92400e !important;
-  }
-
-  .badge--risk-high {
-    background: #fee2e2 !important;
-    color: #991b1b !important;
-  }
-
-  .badge--risk-extreme {
-    background: #fecaca !important;
-    color: #7f1d1d !important;
-    font-weight: 700;
-  }
-
-  /* ============================================================
-     HEADER LAPORAN
-     ============================================================ */
+  
+  .badge--risk-low { background: #d1fae5 !important; color: #065f46 !important; }
+  .badge--risk-medium { background: #fef3c7 !important; color: #92400e !important; }
+  .badge--risk-high { background: #fee2e2 !important; color: #991b1b !important; }
+  .badge--risk-extreme { background: #fecaca !important; color: #7f1d1d !important; font-weight: 700; }
+  
   .report-header {
     border-bottom: 2px solid var(--color-text) !important;
     margin-bottom: 1.5rem;
     padding-bottom: 0.75rem;
   }
-
-  .report-header__layout {
-    display: flex;
-    gap: var(--spacing-md);
-    align-items: start;
-  }
-
-  .report-header__left {
-    flex: 1;
-    display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-md);
-  }
-
-  .report-header__right {
-    text-align: right;
-    min-width: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-  }
-
-  .report-header__logo-section {
-    width: 55px;
-    height: 55px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .report-header__logo-section img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  .report-header__company-info {
-    flex: 1;
-  }
-
-  .report-header__company-name {
-    font-size: 14pt;
-    font-weight: 700;
-    color: var(--color-text) !important;
-    margin-bottom: 2px;
-  }
-
+  
+  .report-header__layout { display: flex; gap: var(--spacing-md); align-items: start; }
+  .report-header__left { flex: 1; display: flex; align-items: flex-start; gap: var(--spacing-md); }
+  .report-header__right { text-align: right; min-width: 200px; }
+  .report-header__logo-section { width: 55px; height: 55px; }
+  .report-header__logo-section img { width: 100%; height: 100%; object-fit: contain; }
+  .report-header__company-name { font-size: 14pt; font-weight: 700; color: var(--color-text) !important; margin-bottom: 2px; }
   .report-header__company-detail,
-  .report-header__company-contact {
-    font-size: 9pt;
-    color: var(--color-text-secondary) !important;
-    display: flex;
-    gap: var(--spacing-md);
-    flex-wrap: wrap;
-  }
-
-  .report-header__doc-type {
-    font-size: 13pt;
-    font-weight: 700;
-    color: var(--color-primary) !important;
-  }
-
-  .report-header__doc-number {
-    font-size: 10pt;
-    color: var(--color-text-secondary) !important;
-    font-weight: 500;
-  }
-
-  .report-header__date {
-    font-size: 9pt;
-    color: var(--color-text-muted) !important;
-    margin-top: var(--spacing-sm);
-  }
-
-  /* ============================================================
-     BAGIAN LAPORAN
-     ============================================================ */
+  .report-header__company-contact { font-size: 9pt; color: var(--color-text-secondary) !important; }
+  .report-header__doc-type { font-size: 13pt; font-weight: 700; color: var(--color-primary) !important; }
+  .report-header__doc-number { font-size: 10pt; color: var(--color-text-secondary) !important; }
+  .report-header__date { font-size: 9pt; color: var(--color-text-muted) !important; }
+  
   .report-section-title {
     font-size: 11pt;
     font-weight: 700;
@@ -1350,268 +1190,72 @@ body::before {
     padding-bottom: var(--spacing-xs);
     margin: 1.2rem 0 0.75rem;
   }
-
+  
   .report-summary-box {
-    padding: var(--spacing-md);
     background: var(--color-bg) !important;
     border: 1px solid var(--color-border) !important;
-    border-radius: var(--radius-md);
-    margin-top: var(--spacing-md);
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
-  /* ============================================================
-     KARTU STATISTIK MINI (LAPORAN PROYEK)
-     ============================================================ */
+  
   .report-stat-mini {
-    text-align: center;
-    padding: var(--spacing-md);
     background: var(--color-surface) !important;
     border: 1px solid var(--color-border) !important;
-    border-radius: var(--radius-md);
   }
-
-  .report-stat-mini__icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    margin-bottom: var(--spacing-sm);
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .report-stat-mini__value {
-    font-size: var(--font-size-xl);
-    font-weight: 700;
-  }
-
-  .report-stat-mini__label {
-    font-size: 8pt;
-    color: var(--color-text-muted) !important;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-
-  /* ============================================================
-     KARTU KEUANGAN (LAPORAN CASHFLOW)
-     ============================================================ */
-  .report-finance-card {
-    padding: var(--spacing-md);
-    border-radius: var(--radius-md);
-    border: 1px solid;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .report-finance-card__label {
-    font-size: 8pt;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: var(--spacing-xs);
-  }
-
-  .report-finance-card__value {
-    font-size: 12pt;
-    font-weight: 700;
-  }
-
-  .report-finance-card--info {
-    background: var(--color-primary-bg) !important;
-    border-color: var(--color-primary-light) !important;
-    color: var(--color-primary-dark) !important;
-  }
-
-  .report-finance-card--warning {
-    background: var(--color-warning-bg) !important;
-    border-color: var(--color-warning-light) !important;
-    color: #92400e !important;
-  }
-
-  .report-finance-card--success {
-    background: var(--color-success-bg) !important;
-    border-color: var(--color-success-light) !important;
-    color: #065f46 !important;
-  }
-
-  .report-finance-card--danger {
-    background: var(--color-danger-bg) !important;
-    border-color: var(--color-danger-light) !important;
-    color: #991b1b !important;
-  }
-
-  /* ============================================================
-     PROGRESS BAR
-     ============================================================ */
-  .progress {
-    height: 20px;
-    background: var(--color-bg) !important;
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .progress-bar {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white !important;
-    font-size: 9pt;
-    font-weight: 600;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* ============================================================
-     KOTAK TANDA TANGAN
-     ============================================================ */
-  .signature-row {
-    display: flex;
-    gap: var(--spacing-md);
-  }
-
-  .signature-row .col-4 {
-    flex: 1;
-  }
-
-  .signature-box {
-    padding: var(--spacing-md);
-    border: 1px solid var(--color-border) !important;
-    border-radius: var(--radius-md);
-    text-align: center;
-  }
-
-  .signature-box__label {
-    font-weight: 600;
-    font-size: 9pt;
-    color: var(--color-text) !important;
-    margin-bottom: 2rem;
-  }
-
-  .signature-box__name {
-    font-weight: 600;
-    font-size: 9pt;
-    margin-bottom: var(--spacing-xs);
-  }
-
-  .signature-box__date {
-    font-size: 8pt;
-    color: var(--color-text-muted) !important;
-  }
-
-  /* ============================================================
-     FOOTER LAPORAN
-     ============================================================ */
-  .report-footer {
-    margin-top: 2rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--color-border) !important;
-    font-size: 9pt;
-    color: var(--color-text-muted) !important;
-  }
-
-  .report-footer__content {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-  }
-
-  .report-footer__disclaimer {
-    font-style: italic;
-    font-size: 8pt;
-    text-align: center;
-  }
-
-  /* ============================================================
-     KONTROL HALAMAN
-     ============================================================ */
-  .page-break {
-    page-break-before: always;
-  }
-
-  .page-break-inside-avoid {
-    page-break-inside: avoid;
-  }
-
-  /* Hindari judul terpisah dari konten */
-  h5, h4, h3, .section-title, .report-section-title {
-    page-break-after: avoid;
-  }
-
-  /* Hindari baris tabel terpotong di tengah */
-  tr {
-    page-break-inside: avoid;
-  }
-
-  /* Hindari card terpotong di tengah */
-  .card {
-    page-break-inside: avoid;
-  }
-
-  /* ============================================================
-     GAMBAR / LOGO
-     ============================================================ */
-  img {
-    max-width: 100% !important;
-  }
-
-  /* Sembunyikan URL tambahan browser */
-  a[href]:after {
-    content: none !important;
-  }
-
-  /* ============================================================
-     PENGATURAN HALAMAN
-     ============================================================ */
-  @page {
-    margin: 1.5cm 2cm;
-    size: A4;
-  }
-
-  /* ============================================================
-     PERBAIKAN PRINT WARNA DI CHROME & BROWSER LAIN
-     ============================================================ */
-  /* Memaksa browser untuk mencetak warna latar belakang */
+  
+  .report-finance-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-finance-card--info { background: var(--color-primary-bg) !important; border-color: var(--color-primary-light) !important; color: var(--color-primary-dark) !important; }
+  .report-finance-card--warning { background: var(--color-warning-bg) !important; border-color: var(--color-warning-light) !important; color: #92400e !important; }
+  .report-finance-card--success { background: var(--color-success-bg) !important; border-color: var(--color-success-light) !important; color: #065f46 !important; }
+  .report-finance-card--danger { background: var(--color-danger-bg) !important; border-color: var(--color-danger-light) !important; color: #991b1b !important; }
+  
+  .progress { background: var(--color-bg) !important; }
+  .progress-bar { color: white !important; font-size: 9pt; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  
+  .signature-row { display: flex; gap: var(--spacing-md); }
+  .signature-row .col-4 { flex: 1; }
+  .signature-box { border: 1px solid var(--color-border) !important; }
+  .signature-box__label { color: var(--color-text) !important; }
+  .signature-box__date { color: var(--color-text-muted) !important; }
+  
+  .report-footer { border-top: 1px solid var(--color-border) !important; color: var(--color-text-muted) !important; }
+  
+  .page-break { page-break-before: always; }
+  .page-break-inside-avoid { page-break-inside: avoid; }
+  h5, h4, h3, .section-title, .report-section-title { page-break-after: avoid; }
+  tr { page-break-inside: avoid; }
+  .card { page-break-inside: avoid; }
+  
+  img { max-width: 100% !important; }
+  a[href]:after { content: none !important; }
+  
+  @page { margin: 1.5cm 2cm; size: A4; }
+  
   .card-header,
   .table th,
   .badge,
   .report-finance-card,
-  .report-stat-mini__icon,
   .progress-bar,
   .bg-primary,
   .bg-success,
   .bg-warning,
   .bg-danger,
   .bg-info,
-  .bg-indigo,
-  .bg-light {
+  .bg-indigo {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 }
 
-/* ============================================================
-   ATURAN LAYAR UNTUK .no-screen
-   ============================================================ */
 @media screen {
-  .no-screen {
-    display: none !important;
-  }
+  .no-screen { display: none !important; }
 }
 
-/* ==================== SCROLLBAR ==================== */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--color-bg); }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
 
-/* ==================== DROPDOWN ==================== */
 .dropdown-menu {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -1653,26 +1297,109 @@ body::before {
   }
 }
 
-.modal-backdrop {
-  z-index: var(--z-modal-backdrop) !important;
+.modal-backdrop { z-index: var(--z-modal-backdrop) !important; }
+.modal { z-index: var(--z-modal) !important; }
+.dropdown-menu { z-index: var(--z-dropdown) !important; }
+.modal .dropdown-menu { z-index: calc(var(--z-modal) + 10) !important; }
+.app-toast-container { z-index: var(--z-toast) !important; }
+#loginContainer { z-index: var(--z-login) !important; }
+
+#timelineChart {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  min-height: 200px;
 }
 
-.modal {
-  z-index: var(--z-modal) !important;
+#timelineChart canvas { display: block; border-radius: 4px; }
+
+.timeline-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 8px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
 }
 
-.dropdown-menu {
-  z-index: var(--z-dropdown) !important;
+.timeline-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
 }
 
-.modal .dropdown-menu {
-  z-index: calc(var(--z-modal) + 10) !important;
+.timeline-legend__color {
+  width: 16px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
 }
 
-.app-toast-container {
-  z-index: var(--z-toast) !important;
+@media print {
+  #timelineChartCard { display: none !important; }
+  #timelineChart {
+    border: 1px solid var(--color-border) !important;
+    page-break-inside: avoid;
+  }
 }
 
-#loginContainer {
-  z-index: var(--z-login) !important;
+#navbarLoadingSpinner {
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#navbarLoadingSpinner video {
+  border-radius: 50%;
+  background: transparent;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+#navbarLoadingSpinner[style*="display: block"] {
+  animation: fadeInSpinner 0.3s ease;
+}
+
+@keyframes fadeInSpinner {
+  from { opacity: 0; transform: scale(0.8) translateY(10px); right: 16px; bottom: 16px; }
+  to { opacity: 1; transform: scale(1) translateY(0); right: 24px; bottom: 24px; }
+}
+
+@media print {
+  #navbarLoadingSpinner { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  .app-sidebar { transform: translateX(-100%); }
+  .app-sidebar.open { transform: translateX(0); }
+  .app-main-content { margin-left: 0 !important; padding-top: 60px; }
+  .user-info-bar { left: 0 !important; }
+}
+
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1100;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-dark-surface);
+  color: var(--color-dark-text);
+  font-size: 1.4rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  transition: background var(--transition-fast);
+}
+
+.hamburger-btn:hover { background: var(--color-primary); }
+
+@media (max-width: 768px) {
+  .hamburger-btn { display: flex; }
 }

@@ -1,6 +1,3 @@
-// main.js — KPT App (Google Sheets backend)
-
-/* ==================== WORK TYPE APD ==================== */
 const WORK_TYPE_APD = {
   welding: { label: 'Welding (Pengelasan)', icon: 'bi-fire', items: [
     { id: 'ppe_welding_helmet', label: 'Helm Las (Auto Darkening)' },
@@ -65,29 +62,12 @@ const WORK_TYPE_APD = {
   ]}
 };
 
-/* ==================== UTILITY SERVICE ==================== */
 const UtilityService = {
   escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  },
-
-  calculateRisk(severity, likelihood) {
-    const s = Math.max(0, Math.min(5, parseInt(severity) || 0));
-    const l = Math.max(0, Math.min(5, parseInt(likelihood) || 0));
-    const level = s * l;
-    let category = 'Tidak Ada', badgeClass = '';
-    if (level >= 1  && level <= 4)  { category = 'Rendah';  badgeClass = 'badge--risk-low'; }
-    if (level >= 5  && level <= 9)  { category = 'Sedang';  badgeClass = 'badge--risk-medium'; }
-    if (level >= 10 && level <= 15) { category = 'Tinggi';  badgeClass = 'badge--risk-high'; }
-    if (level >= 16)                { category = 'Ekstrim'; badgeClass = 'badge--risk-extreme'; }
-    return { level, category, badgeClass };
-  },
-
-  getRiskBadgeClass(category) {
-    return ({ 'Rendah':'badge--risk-low','Sedang':'badge--risk-medium','Tinggi':'badge--risk-high','Ekstrim':'badge--risk-extreme' })[category] || '';
   },
 
   formatDate(d) {
@@ -115,15 +95,27 @@ const UtilityService = {
     return 'Rp ' + new Intl.NumberFormat('id-ID').format(amount);
   },
 
-  async generateJSADocNumber() {
-    const y = new Date().getFullYear();
-    const count = await DB.getCount(SHEETS.JSA);
-    return `JSA-${y}-${String(count + 1).padStart(3, '0')}`;
+  toDateInput(d) {
+    if (!d) return '';
+    try {
+      const s = String(d);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const date = new Date(s);
+      if (isNaN(date.getTime())) return '';
+      const yyyy = date.getFullYear();
+      const mm   = String(date.getMonth() + 1).padStart(2, '0');
+      const dd   = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    } catch { return ''; }
   },
-  async generateWMDocNumber() {
+
+  async generateDocNumber(type) {
     const y = new Date().getFullYear();
-    const count = await DB.getCount(SHEETS.WORK_METHODS);
-    return `WM-${y}-${String(count + 1).padStart(3, '0')}`;
+    const sheet = type === 'JSA' ? SHEETS.JSA : SHEETS.WORK_METHODS;
+    const count = await DB.getCount(sheet);
+    const seq = String(count + 1).padStart(3, '0');
+    const rand = Math.floor(Math.random() * 90 + 10);
+    return `${type}-${y}-${seq}${rand}`;
   },
 
   showConfirmDialog(message, onConfirm, onCancel) {
@@ -150,7 +142,6 @@ const UtilityService = {
     document.body.appendChild(wrapper.firstElementChild);
 
     document.getElementById('confirmDialogMsg').textContent = message;
-
     const modalEl = document.getElementById('confirmDialog');
     const modal = new bootstrap.Modal(modalEl);
     document.getElementById('confirmOkBtn').addEventListener('click', () => { modal.hide(); if (onConfirm) onConfirm(); });
@@ -160,7 +151,6 @@ const UtilityService = {
   }
 };
 
-/* ==================== UI SERVICE ==================== */
 const UIService = {
   currentRoute: null,
   _guardCache: { companyOk: null, hasProjects: null },
@@ -169,18 +159,7 @@ const UIService = {
     this._guardCache = { companyOk: null, hasProjects: null };
   },
 
-  init() {
-    this.setupRouting();
-  },
-
-  showFlowBanner(icon, title, message, buttonLabel, buttonAction) {
-    return `<div class="flow-guard-banner">
-      <div class="flow-guard-banner__icon"><i class="bi ${icon}"></i></div>
-      <h5 class="flow-guard-banner__title">${title}</h5>
-      <p class="flow-guard-banner__description">${message}</p>
-      <button class="btn btn--primary" onclick="${buttonAction}">${buttonLabel}</button>
-    </div>`;
-  },
+  init() { this.setupRouting(); },
 
   showToast(message, type = 'success') {
     let container = document.querySelector('.app-toast-container');
@@ -193,7 +172,6 @@ const UIService = {
     const el = document.createElement('div');
     el.className = `toast align-items-center text-bg-${type} border-0 show mb-2`;
     el.style.minWidth = '300px';
-    el.style.animation = 'slideIn 0.3s ease-out';
     el.innerHTML = `<div class="d-flex"><div class="toast-body d-flex align-items-center gap-2"><i class="bi ${iconMap[type]||iconMap.info}"></i><span class="toast-msg"></span></div><button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.closest('.toast').remove()"></button></div>`;
     el.querySelector('.toast-msg').textContent = message;
     container.appendChild(el);
@@ -218,9 +196,31 @@ const UIService = {
     if (window.innerWidth < 769) setTimeout(() => AppNavbar?.closeSidebar(), 100);
   },
 
+  showFlowBanner(icon, title, message, buttonLabel, buttonAction) {
+    return `<div class="flow-guard-banner">
+      <div class="flow-guard-banner__icon"><i class="bi ${icon}"></i></div>
+      <h5 class="flow-guard-banner__title">${title}</h5>
+      <p class="flow-guard-banner__description">${message}</p>
+      <button class="btn btn--primary" onclick="${buttonAction}">${buttonLabel}</button>
+    </div>`;
+  },
+
   async loadPage(route) {
     const mainContent = document.getElementById('appMainContent');
     if (!mainContent) return;
+
+    // Auth guard: cek apakah user punya hak akses ke route ini
+    if (typeof AuthService !== 'undefined' && AuthService.isLoggedIn()) {
+      if (!AuthService.canAccess(route) && route !== ROUTES.AKUN) {
+        mainContent.innerHTML = `<div class="flow-guard-banner">
+          <div class="flow-guard-banner__icon"><i class="bi bi-shield-lock"></i></div>
+          <h5 class="flow-guard-banner__title">Akses Ditolak</h5>
+          <p class="flow-guard-banner__description">Anda tidak memiliki izin untuk mengakses halaman ini.</p>
+          <button class="btn btn--primary" onclick="UIService.navigate('${ROUTES.DASHBOARD}')">Kembali ke Dashboard</button>
+        </div>`;
+        return;
+      }
+    }
 
     if (route === ROUTES.AKUN) {
       if (typeof AppAuth !== 'undefined') {
@@ -231,9 +231,7 @@ const UIService = {
     }
 
     if (ROUTES_NEED_COMPANY.includes(route)) {
-      if (this._guardCache.companyOk === null) {
-        this._guardCache.companyOk = await DataAccess.isCompanyComplete();
-      }
+      if (this._guardCache.companyOk === null) this._guardCache.companyOk = await DataAccess.isCompanyComplete();
       if (!this._guardCache.companyOk) {
         mainContent.innerHTML = this.showFlowBanner(
           'bi-building-exclamation', 'Lengkapi Data Perusahaan Terlebih Dahulu',
@@ -241,15 +239,12 @@ const UIService = {
           '<i class="bi bi-building"></i> Isi Data Perusahaan',
           `UIService.navigate('${ROUTES.PERUSAHAAN}')`
         );
-        document.querySelectorAll('.nav-item[data-route]').forEach(n => n.classList.toggle('active', n.dataset.route === route));
         return;
       }
     }
 
     if (ROUTES_NEED_PROJECT.includes(route)) {
-      if (this._guardCache.hasProjects === null) {
-        this._guardCache.hasProjects = await DataAccess.hasProjects();
-      }
+      if (this._guardCache.hasProjects === null) this._guardCache.hasProjects = await DataAccess.hasProjects();
       if (!this._guardCache.hasProjects) {
         mainContent.innerHTML = this.showFlowBanner(
           'bi-clipboard-plus', 'Buat Proyek Terlebih Dahulu',
@@ -257,7 +252,6 @@ const UIService = {
           '<i class="bi bi-clipboard-data"></i> Buat Proyek Baru',
           `UIService.navigate('${ROUTES.PROYEK}')`
         );
-        document.querySelectorAll('.nav-item[data-route]').forEach(n => n.classList.toggle('active', n.dataset.route === route));
         return;
       }
     }
@@ -272,142 +266,22 @@ const UIService = {
   }
 };
 
-/* ==================== DASHBOARD PAGE (OPTIMIZED) ==================== */
-const DashboardPage = {
-  render() {
-    return `
-    <div class="page-header no-print">
-      <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-speedometer2"></i></span>Dashboard</h2>
-    </div>
-    <div id="${EL.DASHBOARD_ALERTS}"></div>
-    <div class="stat-grid">
-      ${this._statCard('blue',   'bi-building',      EL.STAT_COMPANY,      'Perusahaan',   ROUTES.PERUSAHAAN)}
-      ${this._statCard('green',  'bi-clipboard-data', EL.STAT_PROJECTS,     'Proyek',       ROUTES.PROYEK)}
-      ${this._statCard('indigo', 'bi-diagram-3',      EL.STAT_WORK_METHODS, 'Metode Kerja', ROUTES.METODE)}
-      ${this._statCard('amber','bi-journal-check', EL.STAT_JSA,          'Total JSA',    ROUTES.JSA)}
-      ${this._statCard('cyan', 'bi-people',         EL.STAT_MANPOWER,     'Man Power',    ROUTES.MANPOWER)}
-      ${this._statCard('red',  'bi-cart',            EL.STAT_PROCUREMENT,  'Pembelian',    ROUTES.PEMBELIAN)}
-    </div>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header"><i class="bi bi-journal-text"></i> JSA Terbaru
-            <a href="#${ROUTES.JSA}" class="ms-auto btn btn--xs btn--ghost" onclick="event.preventDefault();UIService.navigate('${ROUTES.JSA}')">Lihat Semua <i class="bi bi-chevron-right"></i></a>
-          </div>
-          <div id="${EL.RECENT_JSA}"><div class="empty-state"><div class="empty-state__icon"><i class="bi bi-journal"></i></div><p>Memuat…</p></div></div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header"><i class="bi bi-building"></i> Proyek Terbaru
-            <a href="#${ROUTES.PROYEK}" class="ms-auto btn btn--xs btn--ghost" onclick="event.preventDefault();UIService.navigate('${ROUTES.PROYEK}')">Lihat Semua <i class="bi bi-chevron-right"></i></a>
-          </div>
-          <div id="${EL.RECENT_PROJECTS}"><div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-data"></i></div><p>Memuat…</p></div></div>
-        </div>
-      </div>
-    </div>`;
-  },
-
-  _statCard(color, icon, id, label, route) {
-    return `<div class="stat-card stat-card--${color} stat-card--clickable" onclick="UIService.navigate('${route}')">
-      <div class="stat-card__icon"><i class="bi ${icon}"></i></div>
-      <div class="stat-card__value" id="${id}">-</div>
-      <div class="stat-card__label">${label}</div>
-    </div>`;
-  },
-
-  async init() {
-    try {
-      const [company, stats, recentJSA, recentProjects] = await Promise.all([
-        DataAccess.getCompany(),
-        DB.getStats(),
-        DB.getRecent(SHEETS.JSA, 5),
-        DB.getRecent(SHEETS.PROJECTS, 4)
-      ]);
-
-      const alertsEl = document.getElementById(EL.DASHBOARD_ALERTS);
-      if (alertsEl) {
-        const isCompanyReady = !!(company && company.name);
-        const hasProj = stats.totalProjects > 0;
-        if (!isCompanyReady) {
-          alertsEl.innerHTML = `<div class="flow-alert flow-alert--warning"><i class="bi bi-exclamation-triangle-fill"></i> <strong>Langkah 1:</strong> Lengkapi <a href="#${ROUTES.PERUSAHAAN}" onclick="event.preventDefault();UIService.navigate('${ROUTES.PERUSAHAAN}')">Data Perusahaan</a> terlebih dahulu.</div>`;
-        } else if (!hasProj) {
-          alertsEl.innerHTML = `<div class="flow-alert flow-alert--info"><i class="bi bi-info-circle-fill"></i> <strong>Langkah 2:</strong> <a href="#${ROUTES.PROYEK}" onclick="event.preventDefault();UIService.navigate('${ROUTES.PROYEK}')">Buat Proyek pertama Anda</a> untuk mulai menggunakan semua fitur.</div>`;
-        }
-      }
-
-      const statCompanyEl = document.getElementById(EL.STAT_COMPANY);
-      if (statCompanyEl) statCompanyEl.textContent = company ? '✓' : '-';
-
-      const statMap = {
-        [EL.STAT_PROJECTS]:     stats.totalProjects,
-        [EL.STAT_JSA]:          stats.totalJSA,
-        [EL.STAT_WORK_METHODS]: stats.totalWorkMethods,
-        [EL.STAT_PROCUREMENT]:  stats.totalPO,
-        [EL.STAT_MANPOWER]:     stats.totalManpower,
-      };
-      Object.entries(statMap).forEach(([id, val]) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = val !== undefined ? val : '-';
-      });
-
-      const recentJSAEl = document.getElementById(EL.RECENT_JSA);
-      if (recentJSAEl) {
-        recentJSAEl.innerHTML = recentJSA.length > 0
-          ? recentJSA.map(jsa => `
-              <a href="#${ROUTES.JSA}" class="list-item" onclick="event.preventDefault();UIService.navigate('${ROUTES.JSA}')">
-                <div class="list-item__icon list-item__icon--warning"><i class="bi bi-journal-text"></i></div>
-                <div class="list-item__body">
-                  <div class="list-item__title">${UtilityService.escapeHtml(jsa.document_number || 'Tanpa Nomor')}</div>
-                  <div class="list-item__subtitle">${UtilityService.escapeHtml(jsa.project_id || '-')}</div>
-                </div>
-                <div class="list-item__end"><span class="text-muted">${UtilityService.getTimeAgo(jsa.updated_at || jsa.created_at)}</span></div>
-              </a>`).join('')
-          : '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-journal"></i></div><p>Belum ada JSA</p></div>';
-      }
-
-      const recentProjectsEl = document.getElementById(EL.RECENT_PROJECTS);
-      if (recentProjectsEl) {
-        recentProjectsEl.innerHTML = recentProjects.length > 0
-          ? recentProjects.map(project => `
-              <a href="#${ROUTES.PROYEK}" class="list-item" onclick="event.preventDefault();UIService.navigate('${ROUTES.PROYEK}')">
-                <div class="list-item__icon list-item__icon--success"><i class="bi bi-building"></i></div>
-                <div class="list-item__body">
-                  <div class="list-item__title">${UtilityService.escapeHtml(project.name)}</div>
-                  <div class="list-item__subtitle">${UtilityService.escapeHtml(project.client || '-')}</div>
-                </div>
-                <div class="list-item__end"><span class="text-muted">${UtilityService.getTimeAgo(project.updated_at || project.created_at)}</span></div>
-              </a>`).join('')
-          : '<div class="empty-state"><div class="empty-state__icon"><i class="bi bi-clipboard-data"></i></div><p>Belum ada proyek</p></div>';
-      }
-    } catch (err) {
-      AppError.handle(err, 'Memuat dashboard');
-      const alertsEl = document.getElementById(EL.DASHBOARD_ALERTS);
-      if (alertsEl) {
-        alertsEl.innerHTML = `<div class="flow-alert flow-alert--warning"><i class="bi bi-exclamation-triangle-fill"></i> Gagal memuat data dashboard. <a href="javascript:location.reload()">Muat ulang</a></div>`;
-      }
-    }
-  }
-};
-
-// Definisikan PAGE_MAP sekali di sini
 const PAGE_MAP = Object.freeze({
-  [ROUTES.DASHBOARD]:  DashboardPage,
+  [ROUTES.DASHBOARD]: DashboardPage,
   [ROUTES.PERUSAHAAN]: CompanyPage,
-  [ROUTES.PROYEK]:     ProjectPage,
-  [ROUTES.METODE]:     WorkMethodPage,
-  [ROUTES.JSA]:        JSAPage,
-  [ROUTES.MANPOWER]:   ManpowerPage,
-  [ROUTES.PEMBELIAN]:  ProcurementPage,
-  [ROUTES.LAPORAN]:    ReportPage,
+  [ROUTES.PROYEK]: ProjectPage,
+  [ROUTES.METODE]: WorkMethodPage,
+  [ROUTES.JSA]: JSAPage,
+  [ROUTES.JADWAL]: SchedulePage,
+  [ROUTES.MANPOWER]: ManpowerPage,
+  [ROUTES.PEMBELIAN]: ProcurementPage,
+  [ROUTES.LAPORAN]: ReportPage,
 });
 
 document.addEventListener('DOMContentLoaded', () => {
   UIService.init();
-  if (!AuthService.isLoggedIn()) {
-    LoginPage.show();
-  } else {
-    AppAuth.onLoginSuccess(AuthService.getCurrentRole());
-  }
+  if (!AuthService.isLoggedIn()) LoginPage.show();
+  else AppAuth.onLoginSuccess(AuthService.getCurrentRole());
 });
+
 window.UIService = UIService;

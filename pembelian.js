@@ -2,24 +2,20 @@
 const ProcurementPage = {
   _currentItems: [],
   _cachedProjects: [],
+  _editId: null, // ID item yang sedang diedit (null = mode tambah baru)
 
   render() {
     return `
       <div class="page-header no-print">
-        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-cart"></i></span>Cost Project</h2>
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-building-gear"></i></span>KPT Project Management Portal</h2>
+        <div class="page-header__filter">
+          <select class="form-select" id="selectFilterPOProject" onchange="ProcurementPage.loadPOList()">
+            <option value="">Semua Proyek</option>
+          </select>
+        </div>
         <button class="btn btn--primary" onclick="ProcurementPage.showPOForm()"><i class="bi bi-plus-lg"></i> Item Baru</button>
       </div>
     <div id="procurementListView">
-      <div class="card"><div class="card-body p-0">
-        <div class="row g-2 p-3">
-          <div class="col-6">
-            <select class="form-select" id="selectFilterPOProject" onchange="ProcurementPage.loadPOList()">
-              <option value="">Semua Proyek</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
       <div class="card d-none d-md-block"><div class="card-body p-0"><div class="table-responsive">
         <table class="table table--hover mb-0">
           <thead><tr><th>No</th><th>Proyek</th><th>Nama Material</th><th>Spesifikasi</th><th>Qty</th><th>Unit</th><th>Harga Satuan</th><th>Total</th><th>Aksi</th></tr></thead>
@@ -56,6 +52,7 @@ const ProcurementPage = {
   },
 
   showPOList() {
+    this._editId = null;
     document.getElementById('procurementListView').style.display = 'block';
     document.getElementById('procurementFormView').style.display = 'none';
     this.loadPOList();
@@ -68,8 +65,10 @@ const ProcurementPage = {
     document.getElementById('procurementListView').style.display = 'none';
     document.getElementById('procurementFormView').style.display = 'block';
     this._currentItems = [];
+    this._editId = null;
     if (editData) {
       document.getElementById('poPageTitle').textContent = 'Edit Item Pembelian';
+      this._editId = editData.id;
       this._currentItems = [{ id:editData.id, material_name:editData.material_name||'', specification:editData.specification||'', quantity:editData.quantity||1, unit:editData.unit||'', unit_price:editData.unit_price||0, total_price:editData.total_price||0, created_at:editData.created_at }];
     } else {
       document.getElementById('poPageTitle').textContent = 'Item Pembelian Baru';
@@ -86,7 +85,7 @@ const ProcurementPage = {
           <select class="form-select" id="selectPOProject"><option value="">-- Pilih Proyek --</option>${projOpts}</select>
         </div>
         <div class="col-sm-6"><label class="form-label">Tanggal Pembelian</label>
-          <input type="date" class="form-control" id="inputPODate" value="${editData ? (editData.date || '') : new Date().toISOString().split('T')[0]}">
+          <input type="date" class="form-control" id="inputPODate" value="${editData ? UtilityService.toDateInput(editData.date) : new Date().toISOString().split('T')[0]}">
         </div>
       </div>
       <div class="section-title">Daftar Item Pembelian</div>
@@ -175,21 +174,46 @@ const ProcurementPage = {
     }
     const poDate = document.getElementById('inputPODate')?.value || new Date().toISOString().split('T')[0];
     const now = new Date().toISOString();
-    const poArray = items.map(item => ({
-      id: 'po_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-      project_id: projectId,
-      material_name: item.material_name,
-      specification: item.specification,
-      quantity: item.quantity,
-      unit: item.unit,
-      unit_price: item.unit_price,
-      total_price: item.total_price,
-      date: poDate,
-      created_at: now
-    }));
+    const isEdit = !!this._editId;
+
     try {
-      await DataAccess.saveMultiplePO(poArray);
-      UIService.showToast(`${items.length} item berhasil disimpan!`, TOAST.SUCCESS);
+      if (isEdit) {
+        // Mode edit: hapus record lama dulu, lalu simpan dengan ID yang sama
+        await DataAccess.deletePO(this._editId);
+        const item = items[0]; // Edit hanya mendukung 1 item
+        const updated = {
+          id: this._editId,
+          project_id: projectId,
+          material_name: item.material_name,
+          specification: item.specification,
+          quantity: item.quantity,
+          unit: item.unit,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          date: poDate,
+          created_at: this._currentItems[0]?.created_at || now,
+          updated_at: now
+        };
+        await DataAccess.savePO(updated);
+        UIService.showToast('Item berhasil diperbarui!', TOAST.SUCCESS);
+      } else {
+        // Mode tambah baru: buat ID baru untuk setiap item
+        const poArray = items.map((item, idx) => ({
+          id: 'po_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).substr(2, 6),
+          project_id: projectId,
+          material_name: item.material_name,
+          specification: item.specification,
+          quantity: item.quantity,
+          unit: item.unit,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          date: poDate,
+          created_at: now
+        }));
+        await DataAccess.saveMultiplePO(poArray);
+        UIService.showToast(`${items.length} item berhasil disimpan!`, TOAST.SUCCESS);
+      }
+      this._editId = null;
       setTimeout(() => this.showPOList(), 1200);
     } catch (err) { AppError.handle(err, 'Menyimpan item pembelian'); }
   },

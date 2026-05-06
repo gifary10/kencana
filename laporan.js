@@ -1,33 +1,30 @@
 // laporan.js — Report Page (async Google Sheets)
 const ReportPage = {
   _currentReportType: 'jsa',
-  _loadedTabs: new Set(), // Track tab yang sudah di-load
-  // Cache data setelah di-load agar render report tidak async
+  _loadedTabs: new Set(),
   _data: { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null },
 
   render() {
     return `
     <div class="page-header no-print">
-        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-file-earmark-pdf"></i></span>Laporan</h2>
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-building-gear"></i></span>KPT Project Management Portal</h2>
+        <div class="page-header__filter">
+          <select class="form-select" id="selectReportProject" onchange="ReportPage.onProjectChange()">
+            <option value="">-- Pilih Proyek --</option>
+          </select>
+        </div>
         <button class="btn btn--primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak PDF</button>
       </div>
     <div id="reportListView">
       <div class="card no-print"><div class="card-body p-0">
         <div class="row g-2 p-3">
-          <div class="col-4">
-            <select class="form-select" id="selectReportProject" onchange="ReportPage.onProjectChange()">
-              <option value="">Semua Proyek</option>
-            </select>
-          </div>
-          <div class="col-4"><div id="reportDocSelector"></div></div>
           <div class="col-12">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div class="tab-nav" id="reportTabs" style="margin-bottom:0;border-bottom:none;">
                 <button class="tab-nav__btn tab-nav__btn--active" onclick="ReportPage.switchReportTab('jsa')">JSA</button>
                 <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('wm')">Metode Kerja</button>
+                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('schedule')">Jadwal Kerja</button>
                 <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('po')">Cost Project</button>
-                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('project')">Proyek</button>
-                <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('cashflow')">Keuangan</button>
                 <button class="tab-nav__btn" onclick="ReportPage.switchReportTab('manpower')">Man Power</button>
               </div>
             </div>
@@ -42,7 +39,6 @@ const ReportPage = {
     this._loadedTabs = new Set();
     this._data = { projects:[], jsa:[], wm:[], po:[], personnel:[], manpower:[], company:null };
 
-    // Hanya load data minimal yang selalu dibutuhkan: projects + company
     const [projects, company] = await Promise.all([
       DataAccess.getAllProjects(),
       DataAccess.getCompany()
@@ -52,19 +48,28 @@ const ReportPage = {
 
     const sel = document.getElementById('selectReportProject');
     if (sel) {
-      sel.innerHTML = '<option value="">Semua Proyek</option>';
+      sel.innerHTML = '<option value="">-- Pilih Proyek --</option>';
       projects.forEach(p => { const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
     }
 
     if (!projects.length) {
-      document.getElementById('reportOutput').innerHTML = UIService.showFlowBanner('bi-clipboard-plus','Belum Ada Proyek','Buat proyek terlebih dahulu sebelum mencetak laporan.','<i class="bi bi-clipboard-data"></i> Buat Proyek',"UIService.navigate('proyek')");
+      document.getElementById('reportOutput').innerHTML = UIService.showFlowBanner(
+        'bi-clipboard-plus', 'Belum Ada Proyek',
+        'Buat proyek terlebih dahulu sebelum mencetak laporan.',
+        '<i class="bi bi-clipboard-data"></i> Buat Proyek',
+        "UIService.navigate('proyek')"
+      );
       return;
     }
-    // Load tab pertama (jsa) saja, tab lain akan di-load saat diklik
-    await this.switchReportTab('jsa');
+
+    // Aktifkan tab default tapi langsung tampilkan banner pilih proyek
+    this._currentReportType = 'jsa';
+    document.querySelectorAll('#reportTabs .tab-nav__btn').forEach((btn, idx) => {
+      btn.classList.toggle('tab-nav__btn--active', idx === 0);
+    });
+    this.renderReport(); // akan tampilkan banner "pilih proyek" karena belum ada yang dipilih
   },
 
-  // Load data untuk tab tertentu, hanya jika belum pernah di-load
   async _loadTabData(tab) {
     const reportEl = document.getElementById('reportOutput');
     if (reportEl) reportEl.innerHTML = '<div class="report-container"><div class="empty-state"><p>Memuat data…</p></div></div>';
@@ -73,10 +78,10 @@ const ReportPage = {
       if (tab === 'jsa' && !this._data.jsa.length) {
         this._data.jsa = await DataAccess.getAllJSA();
       }
-      if (tab === 'wm' && !this._data.wm.length) {
+      if ((tab === 'wm' || tab === 'schedule') && !this._data.wm.length) {
         this._data.wm = await DataAccess.getAllWorkMethods();
       }
-      if ((tab === 'po' || tab === 'cashflow') && !this._data.po.length) {
+      if (tab === 'po' && !this._data.po.length) {
         this._data.po = await DataAccess.getAllPO();
       }
       if (tab === 'manpower' && !this._data.personnel.length) {
@@ -85,72 +90,91 @@ const ReportPage = {
           DataAccess.getAllManpower()
         ]);
       }
-      // Tab 'project' hanya butuh projects yang sudah di-load saat init
     } catch (err) {
       AppError.handle(err, `Memuat data tab ${tab}`);
     }
   },
 
-  onProjectChange() { this.buildDocSelector(this._currentReportType); this.renderReport(); },
+  async onProjectChange() {
+    const projectId = document.getElementById('selectReportProject')?.value || '';
+    if (!projectId) {
+      this.renderReport();
+      return;
+    }
+    // Load data tab aktif jika belum pernah dimuat
+    const tab = this._currentReportType;
+    if (!this._loadedTabs.has(tab)) {
+      await this._loadTabData(tab);
+      this._loadedTabs.add(tab);
+    }
+    this.renderReport();
+  },
 
   async switchReportTab(reportType) {
     this._currentReportType = reportType;
-    document.querySelectorAll('#reportTabs .tab-nav__btn').forEach((btn,idx)=>{
-      btn.classList.toggle('tab-nav__btn--active',['jsa','wm','po','project','cashflow','manpower'][idx]===reportType);
+    document.querySelectorAll('#reportTabs .tab-nav__btn').forEach((btn, idx) => {
+      const tabs = ['jsa', 'wm', 'schedule', 'po', 'manpower'];
+      btn.classList.toggle('tab-nav__btn--active', tabs[idx] === reportType);
     });
-    // Lazy load: muat data tab ini jika belum pernah di-load
+
+    const projectId = document.getElementById('selectReportProject')?.value || '';
+    if (!projectId) {
+      // Belum pilih proyek — tampilkan banner langsung tanpa fetch data
+      this.renderReport();
+      return;
+    }
+
     if (!this._loadedTabs.has(reportType)) {
       await this._loadTabData(reportType);
       this._loadedTabs.add(reportType);
     }
-    this.buildDocSelector(reportType);
     this.renderReport();
   },
 
-  buildDocSelector(reportType) {
-    const projectId = document.getElementById('selectReportProject')?.value||'';
-    let selectorHTML = '';
-    if (reportType==='jsa') {
-      let list=this._data.jsa; if(projectId) list=list.filter(j=>j.project_id===projectId);
-      selectorHTML=`<select class="form-select" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(j=>`<option value="${j.id}">${UtilityService.escapeHtml(j.document_number)}</option>`).join('')}</select>`;
-    } else if (reportType==='wm') {
-      let list=this._data.wm; if(projectId) list=list.filter(w=>w.project_id===projectId);
-      selectorHTML=`<select class="form-select" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(w=>`<option value="${w.id}">${UtilityService.escapeHtml(w.document_number)}</option>`).join('')}</select>`;
-    } else if (reportType==='po') {
-      let list=this._data.po; if(projectId) list=list.filter(p=>p.project_id===projectId);
-      selectorHTML=`<select class="form-select" id="selectReportDoc" onchange="ReportPage.renderReport()"><option value="">-- Semua Data (${list.length}) --</option>${list.map(p=>`<option value="${p.id}">${UtilityService.escapeHtml(p.material_name||p.id)} — ${UtilityService.formatCurrency(p.total_price)}</option>`).join('')}</select>`;
-    } else if (reportType==='manpower') {
-      const c=document.getElementById('reportDocSelector'); if(c) c.innerHTML=''; return;
-    } else {
-      const c=document.getElementById('reportDocSelector'); if(c) c.innerHTML=''; return;
-    }
-    const c=document.getElementById('reportDocSelector'); if(c) c.innerHTML=selectorHTML;
-  },
-
   renderReport() {
-    const projectId=document.getElementById('selectReportProject')?.value||'';
-    const docId=document.getElementById('selectReportDoc')?.value||'';
-    const company=this._data.company;
-    let html='<div class="report-container">';
-    switch(this._currentReportType){
-      case 'jsa':      html+=this.buildJSAReport(docId,projectId,company); break;
-      case 'wm':       html+=this.buildWMReport(docId,projectId,company); break;
-      case 'po':       html+=this.buildPOReport(docId,projectId,company); break;
-      case 'project':  html+=this.buildProjectReport(projectId,company); break;
-      case 'cashflow':  html+=this.buildCashflowReport(projectId,company); break;
-      case 'manpower':  html+=this.buildManpowerReport(projectId,company); break;
-      default:         html+='<div class="alert alert-info">Pilih tipe laporan di atas</div>';
+    const projectId = document.getElementById('selectReportProject')?.value || '';
+    const company   = this._data.company;
+
+    // Guard: proyek wajib dipilih sebelum laporan ditampilkan
+    if (!projectId) {
+      document.getElementById('reportOutput').innerHTML = `
+        <div class="report-container">
+          <div class="flow-guard-banner">
+            <div class="flow-guard-banner__icon"><i class="bi bi-funnel"></i></div>
+            <h5 class="flow-guard-banner__title">Pilih Proyek Terlebih Dahulu</h5>
+            <p class="flow-guard-banner__description">Gunakan filter <strong>Pilih Proyek</strong> di atas untuk menampilkan laporan.</p>
+          </div>
+        </div>`;
+      return;
     }
-    html+='</div>';
-    document.getElementById('reportOutput').innerHTML=html;
+
+    let html = '<div class="report-container">';
+    switch (this._currentReportType) {
+      case 'jsa':      html += this.buildJSAReport(projectId, company);      break;
+      case 'wm':       html += this.buildWMReport(projectId, company);       break;
+      case 'schedule': html += this.buildScheduleReport(projectId, company); break;
+      case 'po':       html += this.buildPOReport(projectId, company);       break;
+      case 'manpower': html += this.buildManpowerReport(projectId, company); break;
+      default:         html += '<div class="alert alert-info">Pilih tipe laporan di atas</div>';
+    }
+    html += '</div>';
+    document.getElementById('reportOutput').innerHTML = html;
+
+    // Render timeline chart jika tab schedule
+    if (this._currentReportType === 'schedule') {
+      setTimeout(() => this.renderTimelineChart(projectId), 100);
+    }
   },
 
   createReportRow(label, value) {
     return `<tr><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
   },
 
-  buildReportHeader(company, title, subtitle='', titleIcon='bi-file-earmark-pdf') {
-    if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div>${subtitle?`<div class="report-header__subtitle">${UtilityService.escapeHtml(subtitle)}</div>`:''}<div class="report-header__date">Tanggal Cetak: ${UtilityService.formatDate(new Date().toISOString())}</div></div></div>`;
+  // ============================================================
+  // REPORT HEADER — TANPA nama proyek & TANPA tanggal
+  // ============================================================
+  buildReportHeader(company, title, titleIcon='bi-file-earmark-pdf') {
+    if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div></div></div>`;
     return `<div class="report-header"><div class="report-header__layout">
       <div class="report-header__left">
         <div class="report-header__company-info">
@@ -166,8 +190,6 @@ const ReportPage = {
       </div>
       <div class="report-header__right">
         <div class="report-header__doc-type">${UtilityService.escapeHtml(title)}</div>
-        ${subtitle?`<div class="report-header__doc-number">${UtilityService.escapeHtml(subtitle)}</div>`:''}
-        <div class="report-header__date">${UtilityService.formatDate(new Date().toISOString())}</div>
       </div>
     </div></div>`;
   },
@@ -185,18 +207,408 @@ const ReportPage = {
     return h;
   },
 
-  buildJSAReport(docId, projectId, company) {
+  // ============================================================
+  // LEMBAR PENGESAHAN — TANPA tanggal
+  // ============================================================
+  buildApprovalSection(preparedBy, reviewedBy, approvedBy) {
+    return `<div class="report-section-title">Lembar Pengesahan</div>
+    <div class="row signature-row">
+      <div class="col-4">
+        <div class="signature-box">
+          <div class="signature-box__label">Disusun Oleh</div>
+          <div class="signature-box__name">${UtilityService.escapeHtml(preparedBy||'_________________')}</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="signature-box">
+          <div class="signature-box__label">Diperiksa Oleh</div>
+          <div class="signature-box__name">${UtilityService.escapeHtml(reviewedBy||'_________________')}</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="signature-box">
+          <div class="signature-box__label">Disetujui Oleh</div>
+          <div class="signature-box__name">${UtilityService.escapeHtml(approvedBy||'_________________')}</div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  // ============================================================
+  // SCHEDULE REPORT WITH TIMELINE CHART
+  // ============================================================
+  buildScheduleReport(projectId, company) {
+    let wmList = [...this._data.wm];
+    if (projectId) wmList = wmList.filter(w => w.project_id === projectId);
+    
+    const project = projectId ? this._data.projects.find(p => p.id === projectId) : null;
+
+    // Kumpulkan semua schedule data dari work methods
+    const scheduleItems = [];
+    wmList.forEach(wm => {
+      if (wm.work_steps && Array.isArray(wm.work_steps)) {
+        wm.work_steps.forEach((step, i) => {
+          const startDate = step.start_date || '';
+          const endDate = step.end_date || '';
+          scheduleItems.push({
+            id: `sch_${wm.id}_${i}`,
+            documentNumber: wm.document_number || 'Tanpa Nomor',
+            stepNumber: step.step_number || (i + 1),
+            workStage: step.work_stage || '',
+            tools: step.tools || '',
+            workProcess: step.work_process || '',
+            startDate: startDate,
+            endDate: endDate,
+            projectId: wm.project_id
+          });
+        });
+      }
+    });
+
+    // Urutkan berdasarkan document number dan step number
+    scheduleItems.sort((a, b) => {
+      if (a.documentNumber !== b.documentNumber) {
+        return a.documentNumber.localeCompare(b.documentNumber);
+      }
+      return a.stepNumber - b.stepNumber;
+    });
+
+    let html = '';
+    html += this.buildReportHeader(company, 'SCHEDULE', 'bi-calendar-week');
+
+    if (project) {
+      html += this.buildProjectInfoSection(project, false);
+    }
+
+    // Timeline Chart Container
+    html += `
+    <div class="report-section-title">
+      <i class="bi bi-bar-chart-steps"></i> Timeline Chart
+    </div>
+    <div class="card mb-4 no-print" id="timelineChartCard">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span style="font-size:.75rem;color:var(--color-text-muted);">
+              <span class="badge bg-success me-1">&nbsp;</span> Selesai
+              <span class="badge bg-warning me-1">&nbsp;</span> Berlangsung
+              <span class="badge bg-info me-1">&nbsp;</span> Mendatang
+              <span class="badge bg-secondary me-1">&nbsp;</span> Belum Diatur
+            </span>
+          </div>
+        </div>
+        <div id="timelineChart" style="overflow-x:auto;overflow-y:auto;max-height:600px;">
+          <p class="text-center text-muted py-4">Memuat timeline...</p>
+        </div>
+      </div>
+    </div>`;
+
+    // Tabel Detail Jadwal
+    html += `
+    <div class="report-section-title">
+      <i class="bi bi-table"></i> Detail Jadwal Kerja
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead>
+          <tr>
+            <th class="col-width-40 text-center">No</th>
+            <th>Tahapan Kerja</th>
+            <th>Proses / Kegiatan</th>
+            <th class="text-center col-width-110">Tanggal Mulai</th>
+            <th class="text-center col-width-110">Tanggal Selesai</th>
+            <th class="text-center col-width-80">Durasi (Hari)</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    if (scheduleItems.length === 0) {
+      html += `<tr><td colspan="6" class="text-center text-muted py-4">Tidak ada data jadwal kerja</td></tr>`;
+    } else {
+      scheduleItems.forEach((item, index) => {
+        const hasDates = item.startDate && item.endDate;
+        const dateValid = hasDates && new Date(item.startDate) <= new Date(item.endDate);
+        
+        let duration = '-';
+        if (dateValid) {
+          const start = new Date(item.startDate);
+          const end = new Date(item.endDate);
+          const diffTime = Math.abs(end - start);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          duration = diffDays + ' hari';
+        }
+
+        html += `
+          <tr>
+            <td class="text-center">${index + 1}</td>
+            <td>${UtilityService.escapeHtml(item.workStage || '—')}</td>
+            <td style="font-size:.78rem;">${UtilityService.escapeHtml(item.workProcess || '—')}</td>
+            <td class="text-center">${item.startDate ? UtilityService.formatDate(item.startDate) : '—'}</td>
+            <td class="text-center">${item.endDate ? UtilityService.formatDate(item.endDate) : '—'}</td>
+            <td class="text-center">${duration}</td>
+          </tr>`;
+      });
+    }
+
+    html += `
+        </tbody>
+      </table>
+    </div>`;
+
+    html += this.buildReportFooter(company);
+    return html;
+  },
+
+  // Render Timeline Chart menggunakan Canvas
+  renderTimelineChart(projectId) {
+    const chartContainer = document.getElementById('timelineChart');
+    if (!chartContainer) return;
+
+    let wmList = [...this._data.wm];
+    if (projectId) wmList = wmList.filter(w => w.project_id === projectId);
+
+    // Kumpulkan schedule items dengan tanggal
+    const scheduleItems = [];
+    wmList.forEach(wm => {
+      if (wm.work_steps && Array.isArray(wm.work_steps)) {
+        wm.work_steps.forEach((step, i) => {
+          if (step.start_date && step.end_date) {
+            scheduleItems.push({
+              id: `sch_${wm.id}_${i}`,
+              documentNumber: wm.document_number || 'Tanpa Nomor',
+              stepNumber: step.step_number || (i + 1),
+              workStage: step.work_stage || '',
+              startDate: step.start_date,
+              endDate: step.end_date
+            });
+          }
+        });
+      }
+    });
+
+    if (scheduleItems.length === 0) {
+      chartContainer.innerHTML = '<p class="text-center text-muted py-4">Tidak ada data jadwal dengan tanggal yang lengkap untuk ditampilkan dalam timeline.</p>';
+      return;
+    }
+
+    // Cari rentang tanggal
+    let minDate = null;
+    let maxDate = null;
+    scheduleItems.forEach(item => {
+      const start = new Date(item.startDate);
+      const end = new Date(item.endDate);
+      if (!minDate || start < minDate) minDate = start;
+      if (!maxDate || end > maxDate) maxDate = end;
+    });
+
+    // Tambah padding 3 hari di kiri dan kanan
+    minDate = new Date(minDate);
+    minDate.setDate(minDate.getDate() - 3);
+    maxDate = new Date(maxDate);
+    maxDate.setDate(maxDate.getDate() + 3);
+
+    const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Siapkan canvas
+    const rowHeight = 36;
+    const leftMargin = 200;
+    const rightMargin = 20;
+    const topMargin = 30;
+    const bottomMargin = 10;
+    const barHeight = 20;
+    const canvasWidth = Math.max(leftMargin + totalDays * 4 + rightMargin, 800);
+    const canvasHeight = topMargin + scheduleItems.length * rowHeight + bottomMargin;
+
+    chartContainer.innerHTML = `
+      <canvas id="timelineCanvas" width="${canvasWidth}" height="${canvasHeight}" 
+              style="min-width:100%;"></canvas>`;
+
+    const canvas = document.getElementById('timelineCanvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // Draw header background
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, canvasWidth, topMargin);
+
+    // Draw month labels
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = 'bold 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+
+    let currentMonth = null;
+    let monthStartX = leftMargin;
+
+    for (let d = 0; d < totalDays; d++) {
+      const date = new Date(minDate);
+      date.setDate(date.getDate() + d);
+      const monthKey = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+      
+      if (monthKey !== currentMonth) {
+        if (currentMonth !== null) {
+          const monthWidth = leftMargin + d * 4 - monthStartX;
+          if (monthWidth > 40) {
+            ctx.fillText(currentMonth, monthStartX + 4, 18);
+          }
+        }
+        currentMonth = monthKey;
+        monthStartX = leftMargin + d * 4;
+      }
+    }
+    if (currentMonth && leftMargin + totalDays * 4 - monthStartX > 40) {
+      ctx.fillText(currentMonth, monthStartX + 4, 18);
+    }
+
+    // Draw grid lines and date markers
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 0.5;
+
+    for (let d = 0; d <= totalDays; d++) {
+      const x = leftMargin + d * 4;
+      
+      ctx.beginPath();
+      ctx.moveTo(x, topMargin);
+      ctx.lineTo(x, canvasHeight);
+      ctx.stroke();
+
+      if (d % 7 === 0 && d < totalDays) {
+        const date = new Date(minDate);
+        date.setDate(date.getDate() + d);
+        ctx.fillStyle = '#475569';
+        ctx.font = '8px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(date.getDate(), x, topMargin - 6);
+      }
+    }
+
+    // Draw today line
+    if (today >= minDate && today <= maxDate) {
+      const todayX = leftMargin + Math.ceil((today - minDate) / (1000 * 60 * 60 * 24)) * 4;
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(todayX, topMargin);
+      ctx.lineTo(todayX, canvasHeight);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 9px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('HARI INI', todayX, topMargin - 12);
+    }
+
+    // Draw horizontal row backgrounds
+    for (let i = 0; i < scheduleItems.length; i++) {
+      const y = topMargin + i * rowHeight;
+      ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+      ctx.fillRect(0, y, canvasWidth, rowHeight);
+    }
+
+    // Draw labels
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 9px Inter, sans-serif';
+    ctx.textAlign = 'right';
+
+    for (let i = 0; i < scheduleItems.length; i++) {
+      const y = topMargin + i * rowHeight;
+      const label = scheduleItems[i].workStage.length > 28 
+        ? scheduleItems[i].workStage.substring(0, 26) + '...' 
+        : scheduleItems[i].workStage;
+      
+      ctx.fillStyle = '#64748b';
+      ctx.font = '7px Inter, sans-serif';
+      ctx.fillText(scheduleItems[i].documentNumber, leftMargin - 8, y + 12);
+      
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 9px Inter, sans-serif';
+      ctx.fillText(label, leftMargin - 8, y + 26);
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y + rowHeight - 1);
+      ctx.lineTo(canvasWidth, y + rowHeight - 1);
+      ctx.stroke();
+    }
+
+    // Draw bars
+    for (let i = 0; i < scheduleItems.length; i++) {
+      const item = scheduleItems[i];
+      const startDate = new Date(item.startDate);
+      const endDate = new Date(item.endDate);
+      const y = topMargin + i * rowHeight + (rowHeight - barHeight) / 2;
+      const x1 = leftMargin + Math.ceil((startDate - minDate) / (1000 * 60 * 60 * 24)) * 4;
+      const x2 = leftMargin + Math.ceil((endDate - minDate) / (1000 * 60 * 60 * 24)) * 4 + 4;
+      const barWidth = Math.max(x2 - x1, 6);
+      const radius = 4;
+
+      let barColor;
+      if (endDate < today) {
+        barColor = '#16a34a';
+      } else if (startDate <= today && endDate >= today) {
+        barColor = '#f59e0b';
+      } else {
+        barColor = '#3b82f6';
+      }
+
+      ctx.fillStyle = barColor;
+      ctx.beginPath();
+      ctx.moveTo(x1 + radius, y);
+      ctx.lineTo(x1 + barWidth - radius, y);
+      ctx.quadraticCurveTo(x1 + barWidth, y, x1 + barWidth, y + radius);
+      ctx.lineTo(x1 + barWidth, y + barHeight - radius);
+      ctx.quadraticCurveTo(x1 + barWidth, y + barHeight, x1 + barWidth - radius, y + barHeight);
+      ctx.lineTo(x1 + radius, y + barHeight);
+      ctx.quadraticCurveTo(x1, y + barHeight, x1, y + barHeight - radius);
+      ctx.lineTo(x1, y + radius);
+      ctx.quadraticCurveTo(x1, y, x1 + radius, y);
+      ctx.closePath();
+      ctx.fill();
+
+      if (barWidth > 80) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '7px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        const startLabel = startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        const endLabel = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        const midX = x1 + barWidth / 2;
+        ctx.fillText(`${startLabel} - ${endLabel}`, midX, y + barHeight - 5);
+      }
+    }
+
+    const legendHtml = `
+      <div style="display:flex;gap:16px;justify-content:center;margin-top:8px;font-size:.75rem;color:var(--color-text-secondary);">
+        <span><span style="display:inline-block;width:16px;height:12px;background:#16a34a;border-radius:3px;margin-right:4px;"></span> Selesai</span>
+        <span><span style="display:inline-block;width:16px;height:12px;background:#f59e0b;border-radius:3px;margin-right:4px;"></span> Berlangsung</span>
+        <span><span style="display:inline-block;width:16px;height:12px;background:#3b82f6;border-radius:3px;margin-right:4px;"></span> Mendatang</span>
+      </div>`;
+    chartContainer.insertAdjacentHTML('beforeend', legendHtml);
+  },
+
+  // ============================================================
+  // JSA REPORT
+  // ============================================================
+  buildJSAReport(projectId, company) {
     let list=[...this._data.jsa];
     if(projectId) list=list.filter(j=>j.project_id===projectId);
-    if(docId) list=list.filter(j=>j.id===docId);
     if(!list.length) return '<div class="alert alert-info">Tidak ada data JSA untuk filter yang dipilih.</div>';
     const permitLabels={hot_work:'🔥 Hot Work',confined_space:'🚧 Confined Space',working_height:'📐 Ketinggian',electrical:'⚡ Isolasi Listrik',lifting:'🏗️ Lifting',excavation:'⛏️ Excavation',pressure_test:'🔧 Pressure Test',radiation:'☢️ Radiasi'};
+    const project = projectId ? this._data.projects.find(p=>p.id===projectId) : null;
     let html='';
+    html+=this.buildReportHeader(company,'JOB SAFETY ANALYSIS','bi-journal-check');
     list.forEach((jsa,index)=>{
-      const project=this._data.projects.find(p=>p.id===jsa.project_id);
-      if(index>0) html+=`<div class="page-break"></div>`;
-      html+=this.buildReportHeader(company,'JOB SAFETY ANALYSIS',jsa.document_number,'bi-journal-check');
-      html+=this.buildProjectInfoSection(project,false);
+      const proj=this._data.projects.find(p=>p.id===jsa.project_id);
+      if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
+      html+=`<div class="page-break-inside-avoid">`;
+      html+=this.buildProjectInfoSection(proj,false);
       html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('No. Dokumen JSA',`<strong>${UtilityService.escapeHtml(jsa.document_number)}</strong>`)}${this.createReportRow('Revisi',UtilityService.escapeHtml(jsa.revision||'0'))}${this.createReportRow('Tanggal Pembuatan',UtilityService.formatDate(jsa.date))}</tbody></table>`;
       const apdItems=[...((jsa.ppe?.selected_items)||[]),...((jsa.ppe?.custom_items)||[]).filter(Boolean)];
       html+=`<div class="report-section-title">1. Alat Pelindung Diri (APD)</div><div class="mb-3">${apdItems.length?apdItems.map(i=>`<span class="badge bg-light text-dark me-1 mb-1">${UtilityService.escapeHtml(i)}</span>`).join(''):'<span class="text-muted">Tidak ada APD yang dipilih</span>'}</div>`;
@@ -210,102 +622,160 @@ const ReportPage = {
       if(em.type||em.procedure||em.assembly_point||em.emergency_number){ html+=`<div class="report-section-title">${sn}. Prosedur Tanggap Darurat</div><table class="table table-bordered table-sm"><tbody>${this.createReportRow('Jenis Keadaan Darurat',UtilityService.escapeHtml(em.type||'-'))}${this.createReportRow('Prosedur Penanganan',UtilityService.escapeHtml(em.procedure||'-'))}${this.createReportRow('Titik Kumpul',UtilityService.escapeHtml(em.assembly_point||'-'))}${this.createReportRow('Nomor Telepon Darurat',UtilityService.escapeHtml(em.emergency_number||'-'))}</tbody></table>`; sn++; }
       const activePermits=Object.entries(jsa.permits||{}).filter(([,v])=>v===true).map(([k])=>permitLabels[k]||k);
       if(activePermits.length){ html+=`<div class="report-section-title">${sn}. Permit to Work yang Diperlukan</div><div class="mb-3">${activePermits.map(p=>`<span class="badge bg-warning text-dark me-1 mb-1">${UtilityService.escapeHtml(p)}</span>`).join('')}</div>`; sn++; }
-      html+=`<div class="page-break-inside-avoid"><div class="report-section-title">${sn}. Lembar Pengesahan</div><div class="row signature-row"><div class="col-4"><div class="signature-box"><div class="signature-box__label">Disusun Oleh</div><div class="signature-box__name">${UtilityService.escapeHtml(jsa.prepared_by||'_________________')}</div><div class="signature-box__date">Tanggal: ${UtilityService.formatDate(jsa.date)}</div></div></div><div class="col-4"><div class="signature-box"><div class="signature-box__label">Diperiksa Oleh</div><div class="signature-box__name">${UtilityService.escapeHtml(jsa.reviewed_by||'_________________')}</div><div class="signature-box__date">Tanggal: _________________</div></div></div><div class="col-4"><div class="signature-box"><div class="signature-box__label">Disetujui Oleh</div><div class="signature-box__name">${UtilityService.escapeHtml(jsa.approved_by||'_________________')}</div><div class="signature-box__date">Tanggal: _________________</div></div></div></div></div>`;
-      html+=this.buildReportFooter(company);
+      html+=this.buildApprovalSection(jsa.prepared_by, jsa.reviewed_by, jsa.approved_by);
+      html+=`</div>`;
     });
+    html+=this.buildReportFooter(company);
     return html;
   },
 
-  buildWMReport(docId, projectId, company) {
+  // ============================================================
+  // WORK METHOD REPORT
+  // ============================================================
+  buildWMReport(projectId, company) {
     let list=[...this._data.wm];
     if(projectId) list=list.filter(w=>w.project_id===projectId);
-    if(docId) list=list.filter(w=>w.id===docId);
     if(!list.length) return '<div class="alert alert-info">Tidak ada data Metode Kerja untuk filter yang dipilih.</div>';
+    const project = projectId ? this._data.projects.find(p=>p.id===projectId) : null;
     let html='';
+    html+=this.buildReportHeader(company,'WORK METHOD','bi-diagram-3');
     list.forEach((wm,index)=>{
-      const project=this._data.projects.find(p=>p.id===wm.project_id);
-      if(index>0) html+=`<div class="page-break"></div>`;
-      html+=this.buildReportHeader(company,'WORK METHOD',wm.document_number,'bi-diagram-3');
-      html+=this.buildProjectInfoSection(project,false);
+      const proj=this._data.projects.find(p=>p.id===wm.project_id);
+      if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
+      html+=`<div class="page-break-inside-avoid">`;
+      html+=this.buildProjectInfoSection(proj,false);
       html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('No. Dokumen',`<strong>${UtilityService.escapeHtml(wm.document_number)}</strong>`)}${this.createReportRow('Revisi',UtilityService.escapeHtml(wm.revision||'0'))}${this.createReportRow('Tanggal Pembuatan',UtilityService.formatDate(wm.date))}</tbody></table>`;
       const steps=wm.work_steps||[];
       html+=`<div class="report-section-title">1. Uraian Langkah Kerja</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>Tahapan Kerja</th><th>Alat Kerja</th><th>Proses / Kegiatan Pekerjaan</th></tr></thead><tbody>`;
       if(steps.length) steps.forEach((s,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(s.work_stage||'-')}</td><td>${UtilityService.escapeHtml(s.tools||'-')}</td><td>${UtilityService.escapeHtml(s.work_process||'-')}</td></tr>`; });
       else html+=`<tr><td colspan="4" class="text-center text-muted">Tidak ada langkah kerja</td></tr>`;
       html+=`</tbody></table>`;
-      html+=`<div class="page-break-inside-avoid"><div class="report-section-title">2. Lembar Pengesahan</div><div class="row signature-row"><div class="col-4"><div class="signature-box"><div class="signature-box__label">Disusun Oleh</div><div class="signature-box__name">${UtilityService.escapeHtml(wm.prepared_by||'_________________')}</div><div class="signature-box__date">Tanggal: ${UtilityService.formatDate(wm.date)}</div></div></div><div class="col-4"><div class="signature-box"><div class="signature-box__label">Diperiksa Oleh</div><div class="signature-box__name">${UtilityService.escapeHtml(wm.reviewed_by||'_________________')}</div><div class="signature-box__date">Tanggal: _________________</div></div></div><div class="col-4"><div class="signature-box"><div class="signature-box__label">Disetujui Oleh</div><div class="signature-box__name">${UtilityService.escapeHtml(wm.approved_by||'_________________')}</div><div class="signature-box__date">Tanggal: _________________</div></div></div></div></div>`;
-      html+=this.buildReportFooter(company);
+      html+=this.buildApprovalSection(wm.prepared_by, wm.reviewed_by, wm.approved_by);
+      html+=`</div>`;
     });
+    html+=this.buildReportFooter(company);
     return html;
   },
 
-  buildPOReport(docId, projectId, company) {
+  // ============================================================
+  // COST PROJECT REPORT (Dengan Keuangan)
+  // ============================================================
+  buildPOReport(projectId, company) {
     let list=[...this._data.po];
     if(projectId) list=list.filter(p=>p.project_id===projectId);
-    if(docId) list=list.filter(p=>p.id===docId);
     if(!list.length) return '<div class="alert alert-info">Tidak ada data Pembelian untuk filter yang dipilih.</div>';
     const project=projectId?this._data.projects.find(p=>p.id===projectId):null;
     const grandTotal=list.reduce((s,p)=>s+(p.total_price||0),0);
     let html='';
-    html+=this.buildReportHeader(company,'COST PROJECT',project?`Proyek: ${project.name}`:'Semua Proyek','bi-cart');
+    html+=this.buildReportHeader(company,'COST PROJECT','bi-cart');
     if(project) html+=this.buildProjectInfoSection(project,false);
-    html+=`<div class="report-section-title">Daftar Item Pembelian</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-30">No</th>${!projectId?'<th>Proyek</th>':''}<th>Nama Material</th><th>Spesifikasi</th><th class="col-width-50">Qty</th><th class="col-width-50">Unit</th><th class="col-width-100">Harga Satuan</th><th class="col-width-100">Total Harga</th><th class="col-width-90">Tanggal</th></tr></thead><tbody>`;
-    list.forEach((po,i)=>{ const pp=this._data.projects.find(x=>x.id===po.project_id); html+=`<tr><td class="text-center">${i+1}</td>${!projectId?`<td>${UtilityService.escapeHtml(pp?.name||'-')}</td>`:''}<td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td><td>${UtilityService.escapeHtml(po.specification||'-')}</td><td class="text-center">${po.quantity||0}</td><td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td><td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td><td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td><td class="text-center">${UtilityService.formatDate(po.date)}</td></tr>`; });
-    html+=`</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;"><td colspan="${projectId?'6':'7'}" class="text-end">TOTAL KESELURUHAN:</td><td class="text-end"><strong class="text-success">${UtilityService.formatCurrency(grandTotal)}</strong></td><td></td></tr></tfoot></table>`;
+    
+    // ===== DAFTAR ITEM PEMBELIAN =====
+    html+=`<div class="report-section-title">Daftar Item Pembelian</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-30">No</th><th>Proyek</th><th>Nama Material</th><th>Spesifikasi</th><th class="col-width-50">Qty</th><th class="col-width-50">Unit</th><th class="col-width-100">Harga Satuan</th><th class="col-width-100">Total Harga</th><th class="col-width-90">Tanggal</th></tr></thead><tbody>`;
+    list.forEach((po,i)=>{ const pp=this._data.projects.find(x=>x.id===po.project_id); html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(pp?.name||'-')}</td><td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td><td>${UtilityService.escapeHtml(po.specification||'-')}</td><td class="text-center">${po.quantity||0}</td><td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td><td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td><td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td><td class="text-center">${UtilityService.formatDate(po.date)}</td></tr>`; });
+    html+=`</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;"><td colspan="7" class="text-end">TOTAL KESELURUHAN:</td><td class="text-end"><strong class="text-success">${UtilityService.formatCurrency(grandTotal)}</strong></td><td></td></tr></tfoot></table>`;
     html+=`<div class="report-summary-box"><div class="row"><div class="col-6"><strong>Total Item:</strong> ${list.length}</div><div class="col-6 text-end"><strong>Grand Total:</strong> <span class="text-success" style="font-size:1.1rem;">${UtilityService.formatCurrency(grandTotal)}</span></div></div></div>`;
-    html+=this.buildReportFooter(company);
-    return html;
-  },
 
-  buildProjectReport(projectId, company) {
+    // ===== KEUANGAN PROYEK (CASHFLOW) =====
     let projects=[...this._data.projects];
     if(projectId) projects=projects.filter(p=>p.id===projectId);
-    if(!projects.length) return '<div class="alert alert-info">Tidak ada data Proyek untuk filter yang dipilih.</div>';
-    let html='';
-    html+=this.buildReportHeader(company,'DATA PROYEK',`${projects.length} Proyek`,'bi-clipboard-data');
-    projects.forEach((project,index)=>{
-      const jsaList=this._data.jsa.filter(j=>j.project_id===project.id);
-      const poList=this._data.po.filter(p=>p.project_id===project.id);
-      const totalPO=poList.reduce((s,p)=>s+(p.total_price||0),0);
-      const wmList=this._data.wm.filter(w=>w.project_id===project.id);
-      if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
-      html+=`<div class="page-break-inside-avoid"><h5 class="text-primary mb-3"><i class="bi bi-building"></i> ${UtilityService.escapeHtml(project.name)}</h5>`;
-      html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('Nama Proyek',`<strong>${UtilityService.escapeHtml(project.name)}</strong>`)}${this.createReportRow('Client / Owner',UtilityService.escapeHtml(project.client))}${this.createReportRow('Lokasi Proyek',UtilityService.escapeHtml(project.location))}${this.createReportRow('Penanggung Jawab (PIC)',UtilityService.escapeHtml(project.pic))}${this.createReportRow('Nilai Kontrak',`<strong>${UtilityService.formatCurrency(project.contract_value)}</strong>`)}${this.createReportRow('Tanggal Mulai',project.start_date?UtilityService.formatDate(project.start_date):'-')}${this.createReportRow('Tanggal Selesai',project.end_date?UtilityService.formatDate(project.end_date):'-')}</tbody></table>`;
-      html+=`<div class="report-section-title">Ringkasan Data Proyek</div><div class="row g-3 mb-3"><div class="col-3"><div class="report-stat-mini"><div class="report-stat-mini__icon" style="background:var(--color-warning-bg);color:var(--color-warning);"><i class="bi bi-journal-check"></i></div><div class="report-stat-mini__value">${jsaList.length}</div><div class="report-stat-mini__label">Dokumen JSA</div></div></div><div class="col-3"><div class="report-stat-mini"><div class="report-stat-mini__icon" style="background:var(--color-primary-bg);color:var(--color-primary);"><i class="bi bi-diagram-3"></i></div><div class="report-stat-mini__value">${wmList.length}</div><div class="report-stat-mini__label">Metode Kerja</div></div></div><div class="col-3"><div class="report-stat-mini"><div class="report-stat-mini__icon" style="background:var(--color-success-bg);color:var(--color-success);"><i class="bi bi-cart"></i></div><div class="report-stat-mini__value">${poList.length}</div><div class="report-stat-mini__label">Item Pembelian</div></div></div></div>`;
-      html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('Total Pembelian',`<strong class="text-success">${UtilityService.formatCurrency(totalPO)}</strong>`)}${this.createReportRow('Sisa Anggaran',`<strong class="${(project.contract_value-totalPO)>=0?'text-success':'text-danger'}">${UtilityService.formatCurrency(project.contract_value-totalPO)}</strong>`)}</tbody></table>`;
-      if(jsaList.length){ html+=`<div class="report-section-title">Daftar JSA (${jsaList.length} Dokumen)</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>No. Dokumen</th><th>Revisi</th><th>Tanggal</th></tr></thead><tbody>`; jsaList.forEach((jsa,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td><strong>${UtilityService.escapeHtml(jsa.document_number)}</strong></td><td class="text-center">${UtilityService.escapeHtml(jsa.revision||'0')}</td><td>${UtilityService.formatDate(jsa.date)}</td></tr>`; }); html+=`</tbody></table>`; }
-      if(poList.length){ html+=`<div class="report-section-title">Daftar Pembelian (${poList.length} Item)</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>Material</th><th class="col-width-60">Qty</th><th class="col-width-50">Unit</th><th class="col-width-110">Total Harga</th><th class="col-width-90">Tanggal</th></tr></thead><tbody>`; poList.forEach((po,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(po.material_name||'-')}</td><td class="text-center">${po.quantity||0}</td><td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td><td class="text-end">${UtilityService.formatCurrency(po.total_price)}</td><td class="text-center">${UtilityService.formatDate(po.date)}</td></tr>`; }); html+=`</tbody></table>`; }
-      html+=`</div>`;
-    });
-    html+=this.buildReportFooter(company);
+    
+    if(projects.length) {
+      let totalBudget=0, totalSpent=0;
+
+      html += `<div class="page-break"></div>`;
+      html += `<div class="report-section-title"><i class="bi bi-cash-stack"></i> Keuangan Proyek</div>`;
+
+      projects.forEach((project, index) => {
+        const poList = this._data.po.filter(p => p.project_id === project.id);
+        const totalPO = poList.reduce((s, p) => s + (p.total_price || 0), 0);
+        const budget = project.contract_value || 0;
+        const remaining = budget - totalPO;
+        const pct = budget > 0 ? Math.round((totalPO / budget) * 100) : 0;
+        totalBudget += budget;
+        totalSpent += totalPO;
+
+        if (index > 0) html += `<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
+        html += `<div class="page-break-inside-avoid">`;
+        html += `<h5 class="text-primary mb-3"><i class="bi bi-building"></i> ${UtilityService.escapeHtml(project.name)}</h5>`;
+        html += `<div class="row g-3 mb-3">
+              <div class="col-4">
+                <div class="report-finance-card report-finance-card--info">
+                  <div class="report-finance-card__label">Nilai Kontrak</div>
+                  <div class="report-finance-card__value">${UtilityService.formatCurrency(budget)}</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="report-finance-card report-finance-card--warning">
+                  <div class="report-finance-card__label">Total Pembelian</div>
+                  <div class="report-finance-card__value">${UtilityService.formatCurrency(totalPO)}</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="report-finance-card ${remaining >= 0 ? 'report-finance-card--success' : 'report-finance-card--danger'}">
+                  <div class="report-finance-card__label">Sisa Anggaran</div>
+                  <div class="report-finance-card__value">${UtilityService.formatCurrency(remaining)}</div>
+                </div>
+              </div>
+            </div>`;
+        html += `<div class="progress progress--md mb-3">
+              <div class="progress-bar" style="width:${Math.min(pct, 100)}%;background:${pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981'}">
+                <strong>${pct}%</strong>
+              </div>
+            </div>`;
+        html += `<table class="table table-bordered table-sm"><tbody>
+              ${this.createReportRow('Nama Proyek', `<strong>${UtilityService.escapeHtml(project.name)}</strong>`)}
+              ${this.createReportRow('Client', UtilityService.escapeHtml(project.client))}
+              ${this.createReportRow('Nilai Kontrak', UtilityService.formatCurrency(budget))}
+              ${this.createReportRow('Total Pengeluaran', UtilityService.formatCurrency(totalPO))}
+              ${this.createReportRow('Persentase Penggunaan', `${pct}%`)}
+              ${this.createReportRow('Sisa Anggaran', `<strong class="${remaining >= 0 ? 'text-success' : 'text-danger'}">${UtilityService.formatCurrency(remaining)}</strong>`)}
+            </tbody></table>`;
+        html += `</div>`;
+      });
+
+      // Rekapitulasi Seluruh Proyek
+      if (!projectId && projects.length > 1) {
+        const totalRem = totalBudget - totalSpent;
+        const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+        html += `<div class="page-break-inside-avoid">
+              <div class="report-section-title">Rekapitulasi Seluruh Proyek</div>
+              <div class="row g-3 mb-3">
+                <div class="col-4">
+                  <div class="report-finance-card report-finance-card--info">
+                    <div class="report-finance-card__label">Total Nilai Kontrak</div>
+                    <div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalBudget)}</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="report-finance-card report-finance-card--warning">
+                    <div class="report-finance-card__label">Total Pembelian</div>
+                    <div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalSpent)}</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="report-finance-card ${totalRem >= 0 ? 'report-finance-card--success' : 'report-finance-card--danger'}">
+                    <div class="report-finance-card__label">Sisa Total Anggaran</div>
+                    <div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalRem)}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="progress progress--md mb-3">
+                <div class="progress-bar" style="width:${Math.min(totalPct, 100)}%;background:${totalPct > 80 ? '#ef4444' : totalPct > 50 ? '#f59e0b' : '#10b981'}">
+                  <strong>${totalPct}%</strong>
+                </div>
+              </div>
+            </div>`;
+      }
+    }
+
+    html += this.buildReportFooter(company);
     return html;
   },
 
-  buildCashflowReport(projectId, company) {
-    let projects=[...this._data.projects];
-    if(projectId) projects=projects.filter(p=>p.id===projectId);
-    if(!projects.length) return '<div class="alert alert-info">Tidak ada data Proyek untuk filter yang dipilih.</div>';
-    let html='', totalBudget=0, totalSpent=0;
-    html+=this.buildReportHeader(company,'KEUANGAN PROYEK',`${projects.length} Proyek`,'bi-cash-stack');
-    projects.forEach((project,index)=>{
-      const poList=this._data.po.filter(p=>p.project_id===project.id);
-      const totalPO=poList.reduce((s,p)=>s+(p.total_price||0),0);
-      const budget=project.contract_value||0, remaining=budget-totalPO, pct=budget>0?Math.round((totalPO/budget)*100):0;
-      totalBudget+=budget; totalSpent+=totalPO;
-      if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
-      html+=`<div class="page-break-inside-avoid"><h5 class="text-primary mb-3"><i class="bi bi-building"></i> ${UtilityService.escapeHtml(project.name)}</h5>`;
-      html+=`<div class="row g-3 mb-3"><div class="col-4"><div class="report-finance-card report-finance-card--info"><div class="report-finance-card__label">Nilai Kontrak</div><div class="report-finance-card__value">${UtilityService.formatCurrency(budget)}</div></div></div><div class="col-4"><div class="report-finance-card report-finance-card--warning"><div class="report-finance-card__label">Total Pembelian</div><div class="report-finance-card__value">${UtilityService.formatCurrency(totalPO)}</div></div></div><div class="col-4"><div class="report-finance-card ${remaining>=0?'report-finance-card--success':'report-finance-card--danger'}"><div class="report-finance-card__label">Sisa Anggaran</div><div class="report-finance-card__value">${UtilityService.formatCurrency(remaining)}</div></div></div></div>`;
-      html+=`<div class="progress progress--md mb-3"><div class="progress-bar" style="width:${Math.min(pct,100)}%;background:${pct>80?'#ef4444':pct>50?'#f59e0b':'#10b981'}"><strong>${pct}%</strong></div></div>`;
-      html+=`<table class="table table-bordered table-sm"><tbody>${this.createReportRow('Nama Proyek',`<strong>${UtilityService.escapeHtml(project.name)}</strong>`)}${this.createReportRow('Client',UtilityService.escapeHtml(project.client))}${this.createReportRow('Nilai Kontrak',UtilityService.formatCurrency(budget))}${this.createReportRow('Total Pengeluaran',UtilityService.formatCurrency(totalPO))}${this.createReportRow('Persentase Penggunaan',`${pct}%`)}${this.createReportRow('Sisa Anggaran',`<strong class="${remaining>=0?'text-success':'text-danger'}">${UtilityService.formatCurrency(remaining)}</strong>`)}</tbody></table>`;
-      if(poList.length){ html+=`<div class="report-section-title">Rincian Pembelian (${poList.length} Item)</div><table class="table table-bordered table-sm"><thead><tr><th class="col-width-30">No</th><th>Material</th><th class="col-width-50">Qty</th><th class="col-width-50">Unit</th><th class="col-width-100">Harga Satuan</th><th class="col-width-100">Total</th></tr></thead><tbody>`; poList.forEach((po,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(po.material_name||'-')}</td><td class="text-center">${po.quantity||0}</td><td class="text-center">${UtilityService.escapeHtml(po.unit||'')}</td><td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td><td class="text-end">${UtilityService.formatCurrency(po.total_price)}</td></tr>`; }); html+=`</tbody></table>`; }
-      html+=`</div>`;
-    });
-    const totalRem=totalBudget-totalSpent, totalPct=totalBudget>0?Math.round((totalSpent/totalBudget)*100):0;
-    html+=`<div class="page-break-inside-avoid"><div class="report-section-title">Rekapitulasi Seluruh Proyek</div><div class="row g-3 mb-3"><div class="col-4"><div class="report-finance-card report-finance-card--info"><div class="report-finance-card__label">Total Nilai Kontrak</div><div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalBudget)}</div></div></div><div class="col-4"><div class="report-finance-card report-finance-card--warning"><div class="report-finance-card__label">Total Pembelian</div><div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalSpent)}</div></div></div><div class="col-4"><div class="report-finance-card ${totalRem>=0?'report-finance-card--success':'report-finance-card--danger'}"><div class="report-finance-card__label">Sisa Total Anggaran</div><div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalRem)}</div></div></div></div><div class="progress progress--md mb-3"><div class="progress-bar" style="width:${Math.min(totalPct,100)}%;background:${totalPct>80?'#ef4444':totalPct>50?'#f59e0b':'#10b981'}"><strong>${totalPct}%</strong></div></div></div>`;
-    html+=this.buildReportFooter(company);
-    return html;
-  },
-
+  // ============================================================
+  // MANPOWER REPORT
+  // ============================================================
   buildManpowerReport(projectId, company) {
     const E = UtilityService.escapeHtml.bind(UtilityService);
     const fmtDate = UtilityService.formatDate.bind(UtilityService);
@@ -321,16 +791,13 @@ const ReportPage = {
       return age + ' thn';
     }
 
-    // Susun daftar {project, personnel[]}
     let projects = [...this._data.projects];
     if (projectId) projects = projects.filter(p => p.id === projectId);
     if (!projects.length) return '<div class="alert alert-info">Tidak ada data Proyek untuk filter yang dipilih.</div>';
 
-    // Build lookup
     const personnelMap = {};
     this._data.personnel.forEach(p => { personnelMap[p.id] = p; });
 
-    // group assignment per project
     const assignByProject = {};
     this._data.manpower.forEach(m => {
       if (!assignByProject[m.project_id]) assignByProject[m.project_id] = [];
@@ -338,8 +805,7 @@ const ReportPage = {
     });
 
     let html = '';
-    html += this.buildReportHeader(company, 'MAN POWER',
-      projectId ? (projects[0]?.name||'') : (projects.length + ' Proyek'), 'bi-people');
+    html += this.buildReportHeader(company, 'MAN POWER', 'bi-people');
 
     projects.forEach((project, index) => {
       const pIds     = assignByProject[project.id] || [];
@@ -391,7 +857,6 @@ const ReportPage = {
       html += '</div>';
     });
 
-    // Rekap jika multi-proyek
     if (!projectId && projects.length > 1) {
       const totalWorkers = new Set(
         Object.values(assignByProject).flat()

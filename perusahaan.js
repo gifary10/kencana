@@ -1,9 +1,8 @@
-// perusahaan.js
 const CompanyPage = {
   render() {
     return `
       <div class="page-header no-print">
-        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-building"></i></span>Perusahaan</h2>
+        <h2 class="page-title"><span class="page-title__icon"><i class="bi bi-building-gear"></i></span>KPT Project Management Portal</h2>
       </div>
     <div class="row g-3"><div class="col-lg-12"><div class="card">
       <div class="card-header"><i class="bi bi-pencil-square"></i> Informasi Perusahaan</div>
@@ -31,7 +30,6 @@ const CompanyPage = {
               <input type="text" class="form-control" id="inputWebsite" placeholder="www.perusahaan.com">
             </div>
           </div>
-
           <div class="d-flex justify-content-end gap-2 mt-4">
             <button type="button" class="btn btn--outline-secondary" onclick="CompanyPage.loadCompanyData()">
               <i class="bi bi-arrow-counterclockwise"></i> Reset
@@ -51,10 +49,10 @@ const CompanyPage = {
     const company = await DataAccess.getCompany();
     if (company) {
       document.getElementById('inputCompanyName').value = company.name || '';
-      document.getElementById('inputAddress').value    = company.address || '';
-      document.getElementById('inputContact').value    = company.contact || '';
-      document.getElementById('inputEmail').value      = company.email || '';
-      document.getElementById('inputWebsite').value    = company.website || '';
+      document.getElementById('inputAddress').value = company.address || '';
+      document.getElementById('inputContact').value = company.contact || '';
+      document.getElementById('inputEmail').value = company.email || '';
+      document.getElementById('inputWebsite').value = company.website || '';
     }
   },
 
@@ -63,16 +61,16 @@ const CompanyPage = {
     if (!name) { UIService.showToast('Nama perusahaan wajib diisi!', 'warning'); return; }
 
     const data = {
-      id:      'comp_main',
+      id: 'comp_main',
       name,
       address: document.getElementById('inputAddress').value.trim(),
       contact: document.getElementById('inputContact').value.trim(),
-      email:   document.getElementById('inputEmail').value.trim(),
+      email: document.getElementById('inputEmail').value.trim(),
       website: document.getElementById('inputWebsite').value.trim()
     };
 
     await DataAccess.saveCompany(data);
-    UIService.invalidateGuardCache(); // company baru disimpan — reset guard check
+    UIService.invalidateGuardCache();
     UIService.showToast('Profil berhasil disimpan!', 'success');
 
     const hasP = await DataAccess.hasProjects();

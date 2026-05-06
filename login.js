@@ -1,14 +1,11 @@
-// login.js — Auth dengan akun dari Google Sheets
-
 const AUTH_KEY = 'kp_auth_session';
 
 const ROLES = {
-  admin:   { label:'Admin',   icon:'bi-shield-lock-fill',  color:'#2185D5', allowedRoutes:['dashboard','perusahaan','proyek','metode','jsa','manpower','pembelian','laporan','akun'], defaultRoute:'dashboard', badge:'bg-primary' },
-  hse:     { label:'HSE',     icon:'bi-journal-check',     color:'#10B981', allowedRoutes:['dashboard','metode','jsa','manpower','laporan'],           defaultRoute:'jsa',       badge:'bg-success' },
-  pembeli: { label:'Pembeli', icon:'bi-cart-fill',         color:'#F59E0B', allowedRoutes:['dashboard','pembelian','laporan'],                         defaultRoute:'pembelian', badge:'bg-warning text-dark' }
+  admin: { label:'Admin', icon:'bi-shield-lock-fill', color:'#2185D5', allowedRoutes:['dashboard','perusahaan','proyek','metode','jsa','jadwal','manpower','pembelian','laporan','akun'], defaultRoute:'dashboard', badge:'bg-primary' },
+  hse: { label:'HSE', icon:'bi-journal-check', color:'#10B981', allowedRoutes:['dashboard','metode','jsa','jadwal','manpower','laporan'], defaultRoute:'jsa', badge:'bg-success' },
+  pembeli: { label:'Pembeli', icon:'bi-cart-fill', color:'#F59E0B', allowedRoutes:['dashboard','pembelian','laporan'], defaultRoute:'pembelian', badge:'bg-warning text-dark' }
 };
 
-/* ==================== AUTH SERVICE ==================== */
 const AuthService = {
   getSession() {
     try { const r = sessionStorage.getItem(AUTH_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
@@ -17,7 +14,7 @@ const AuthService = {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify({ ...user, loginAt: new Date().toISOString() }));
   },
   clearSession() { sessionStorage.removeItem(AUTH_KEY); },
-  isLoggedIn()   { return !!this.getSession(); },
+  isLoggedIn() { return !!this.getSession(); },
   getCurrentRole() { return this.getSession()?.role || null; },
   getCurrentUser() { return this.getSession() || null; },
   canAccess(route) {
@@ -27,7 +24,6 @@ const AuthService = {
   logout() { this.clearSession(); window.location.hash=''; window.location.reload(); }
 };
 
-/* ==================== SIDEBAR SERVICE ==================== */
 const AppNavbar = {
   toggleSidebar() {
     const sidebar = document.getElementById('appSidebar');
@@ -46,27 +42,23 @@ const AppNavbar = {
   closeSidebar() {
     const s = document.getElementById('appSidebar');
     const o = document.getElementById('sidebarOverlay');
-    if (s) s.classList.remove('open');
+    if (s) { s.classList.remove('open'); document.body.style.overflow = ''; }
     if (o) o.classList.remove('active');
-    document.body.style.overflow = '';
   },
   updateUserInfo(session) {
     if (!session) return;
     const rc = ROLES[session.role];
-    const nm = document.getElementById(EL.SIDEBAR_USERNAME); 
+    const nm = document.getElementById(EL.SIDEBAR_USERNAME);
     if (nm) nm.textContent = session.name||'User';
-    const rl = document.getElementById(EL.SIDEBAR_USERROLE); 
+    const rl = document.getElementById(EL.SIDEBAR_USERROLE);
     if (rl) rl.textContent = rc?.label||'Role';
   },
   init() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeSidebar(); });
-    window.addEventListener('resize', () => {
-      if (window.innerWidth >= 1024) this.closeSidebar();
-    });
+    window.addEventListener('resize', () => { if (window.innerWidth >= 1024) this.closeSidebar(); });
   }
 };
 
-/* ==================== LOGIN PAGE ==================== */
 const LoginPage = {
   show() {
     ['appSidebar','appMainContent'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
@@ -112,23 +104,24 @@ const LoginPage = {
     const password = document.getElementById('loginPassword')?.value || '';
     const errorBox = document.getElementById('loginError');
     const errorMsg = document.getElementById('loginErrorMsg');
-    const btn      = document.getElementById('loginBtn');
+    const btn = document.getElementById('loginBtn');
 
     if (!username || !password) {
       errorMsg.textContent = 'Username dan password wajib diisi.';
-      errorBox.style.display = 'flex'; return;
+      errorBox.style.display = 'flex';
+      return;
     }
 
     const spinner = document.getElementById('navbarLoadingSpinner');
     if (spinner) spinner.style.display = 'inline-block';
-    btn.disabled    = true;
-    btn.innerHTML   = '<i class="bi bi-hourglass-split"></i> Memverifikasi…';
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memverifikasi…';
 
     try {
-      const res  = await fetch(window.GS_API_URL, {
-        method:  'POST',
+      const res = await fetch(window.GS_API_URL, {
+        method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body:    JSON.stringify({ action: 'login', username, password })
+        body: JSON.stringify({ action: 'login', username, password })
       });
       const json = await res.json();
 
@@ -144,7 +137,6 @@ const LoginPage = {
       errorBox.style.display = 'none';
       this.hide();
       AppAuth.onLoginSuccess(json.session.role);
-
     } catch (err) {
       errorMsg.textContent = 'Gagal terhubung ke server. Periksa koneksi internet Anda.';
       errorBox.style.display = 'flex';
@@ -164,7 +156,6 @@ const LoginPage = {
   }
 };
 
-/* ==================== APP AUTH ==================== */
 const AppAuth = {
   _navigatePatched: false,
 
@@ -180,19 +171,10 @@ const AppAuth = {
   applyRoleToUI(role) {
     const rc = ROLES[role];
     if (!rc) return;
-    const ns = document.getElementById('navSectionAdmin'), na = document.getElementById('navItemAkun');
-    if (ns) ns.style.display = role==='admin' ? '' : 'none';
+    const na = document.getElementById('navItemAkun');
     if (na) na.style.display = role==='admin' ? '' : 'none';
     document.querySelectorAll('.nav-item[data-route]').forEach(n => {
       n.style.display = rc.allowedRoutes.includes(n.dataset.route) ? '' : 'none';
-    });
-    document.querySelectorAll('.nav-section-label').forEach(label => {
-      let next = label.nextElementSibling, hasVis = false;
-      while (next && !next.classList.contains('nav-section-label')) {
-        if (next.classList.contains('nav-item') && next.style.display !== 'none') { hasVis=true; break; }
-        next = next.nextElementSibling;
-      }
-      label.style.display = hasVis ? '' : 'none';
     });
     this.patchNavigate(role);
   },
@@ -204,7 +186,8 @@ const AppAuth = {
     const _orig = UIService.navigate.bind(UIService);
     UIService.navigate = function(route) {
       if (!rc.allowedRoutes.includes(route)) {
-        UIService.showToast(`Akses ditolak. Role "${rc.label}" tidak dapat mengakses halaman ini.`, 'danger'); return;
+        UIService.showToast(`Akses ditolak.`, 'danger');
+        return;
       }
       _orig(route);
     };
@@ -220,11 +203,8 @@ const AppAuth = {
 
   async renderAccountManager() {
     let accounts = [];
-    try {
-      accounts = await DataAccess.getAccounts();
-    } catch(err) {
-      console.error('[AppAuth] Gagal memuat akun:', err);
-    }
+    try { accounts = await DataAccess.getAccounts(); }
+    catch(err) { console.error('[AppAuth] Gagal memuat akun:', err); }
 
     const roleColors = { admin:'primary', hse:'success', pembeli:'warning' };
 
@@ -258,7 +238,7 @@ const AppAuth = {
       <table class="table table--hover mb-0">
         <thead><tr><th class="col-width-40">No</th><th>Username</th><th>Nama</th><th>Role</th><th class="text-center">Aksi</th></tr></thead>
         <tbody id="accountTableBody">
-          ${accounts.length === 0 ? '<tr><td colspan="5" class="text-center py-4 text-muted">Belum ada akun. Klik "Tambah Akun" untuk menambahkan.</td></tr>' : ''}
+          ${accounts.length === 0 ? '<tr><td colspan="5" class="text-center py-4 text-muted">Belum ada akun.</td></tr>' : ''}
           ${accounts.map((acc, i) => {
             const rc = ROLES[acc.role];
             return `<tr>
@@ -278,40 +258,30 @@ const AppAuth = {
 
     const mainContent = document.getElementById(EL.APP_MAIN_CONTENT);
     if (!mainContent) return;
-
     mainContent.innerHTML = html;
 
     const tbody = document.getElementById('accountTableBody');
     if (tbody) {
       tbody.addEventListener('click', function(e) {
-        const btn      = e.target.closest('[data-action]');
+        const btn = e.target.closest('[data-action]');
         if (!btn) return;
-        const action   = btn.getAttribute('data-action');
+        const action = btn.getAttribute('data-action');
         const username = btn.getAttribute('data-username');
-        if (action === 'edit-account')   AppAuth.editAccount(username);
+        if (action === 'edit-account') AppAuth.editAccount(username);
         if (action === 'delete-account') AppAuth.deleteAccount(username);
       });
     }
   },
 
   showAddAccountForm() {
-    document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = '';
+    document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value = '';
     document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = '';
-    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = '';
-    document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = ROLE_KEYS.ADMIN;
-
+    document.getElementById(EL.INPUT_ACCOUNT_NAME).value = '';
+    document.getElementById(EL.INPUT_ACCOUNT_ROLE).value = ROLE_KEYS.ADMIN;
     const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
-    if (pwInput) {
-      pwInput.value       = '';
-      pwInput.placeholder = 'password';
-      pwInput.required    = true;
-    }
-
+    if (pwInput) { pwInput.value = ''; pwInput.placeholder = 'password'; pwInput.required = true; }
     const f = document.getElementById(EL.ADD_ACCOUNT_FORM_CARD);
-    if (f) {
-      f.style.display = 'block';
-      setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-    }
+    if (f) { f.style.display = 'block'; setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }
   },
 
   async editAccount(username) {
@@ -320,37 +290,28 @@ const AppAuth = {
     catch (err) { AppError.handle(err, 'Memuat data akun'); return; }
 
     const acc = accounts.find(a => a.username === username);
-    if (!acc) {
-      UIService.showToast('Akun tidak ditemukan.', TOAST.DANGER);
-      return;
-    }
+    if (!acc) { UIService.showToast('Akun tidak ditemukan.', TOAST.DANGER); return; }
 
-    document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value  = acc.username;
+    document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value = acc.username;
     document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value = acc.username;
     document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value = '';
-    document.getElementById(EL.INPUT_ACCOUNT_NAME).value     = acc.name || '';
-    document.getElementById(EL.INPUT_ACCOUNT_ROLE).value     = acc.role;
+    document.getElementById(EL.INPUT_ACCOUNT_NAME).value = acc.name || '';
+    document.getElementById(EL.INPUT_ACCOUNT_ROLE).value = acc.role;
 
     const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
-    if (pwInput) {
-      pwInput.placeholder = 'Kosongkan jika tidak diubah';
-      pwInput.required    = false;
-    }
+    if (pwInput) { pwInput.placeholder = 'Kosongkan jika tidak diubah'; pwInput.required = false; }
 
     const f = document.getElementById(EL.ADD_ACCOUNT_FORM_CARD);
-    if (f) {
-      f.style.display = 'block';
-      setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-    }
+    if (f) { f.style.display = 'block'; setTimeout(() => f.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }
   },
 
   async saveAccount() {
-    const username    = document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value.trim();
-    const password    = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value.trim();
-    const name        = document.getElementById(EL.INPUT_ACCOUNT_NAME).value.trim();
-    const role        = document.getElementById(EL.INPUT_ACCOUNT_ROLE).value;
+    const username = document.getElementById(EL.INPUT_ACCOUNT_USERNAME).value.trim();
+    const password = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD).value.trim();
+    const name = document.getElementById(EL.INPUT_ACCOUNT_NAME).value.trim();
+    const role = document.getElementById(EL.INPUT_ACCOUNT_ROLE).value;
     const editOldUser = document.getElementById(EL.EDIT_ACCOUNT_USERNAME).value;
-    const isEdit      = !!editOldUser;
+    const isEdit = !!editOldUser;
 
     if (!username || !name) { UIService.showToast(ERR.REQUIRED_FIELD('Username dan nama'), TOAST.WARNING); return; }
     if (!isEdit && !password) { UIService.showToast(ERR.REQUIRED_FIELD('Password'), TOAST.WARNING); return; }
@@ -365,17 +326,12 @@ const AppAuth = {
     if (dup && dup.username !== editOldUser) { UIService.showToast(ERR.DUPLICATE('Username'), TOAST.WARNING); return; }
 
     try {
-      const payload = { username, name, role, oldUsername: editOldUser || '' };
+      // Gunakan _post() bukan fetch() langsung agar token otomatis disertakan
+      const payload = { action: 'saveAccount', username, name, role, oldUsername: editOldUser || '' };
       if (password) payload.password = password;
+      await DB.post(payload);
 
-      const res  = await fetch(window.GS_API_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body:    JSON.stringify({ action: 'saveAccount', ...payload })
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || ERR.SAVE_FAILED);
-
+      AppCache.invalidate('accounts');
       UIService.showToast('Akun berhasil disimpan!', TOAST.SUCCESS);
       document.getElementById(EL.ADD_ACCOUNT_FORM_CARD).style.display = 'none';
       const pwInput = document.getElementById(EL.INPUT_ACCOUNT_PASSWORD);
@@ -389,13 +345,13 @@ const AppAuth = {
   async deleteAccount(username) {
     const session = AuthService.getCurrentUser();
     if (session && session.username === username) {
-      UIService.showToast('Tidak dapat menghapus akun yang sedang aktif!', TOAST.DANGER); return;
+      UIService.showToast('Tidak dapat menghapus akun yang sedang aktif!', TOAST.DANGER);
+      return;
     }
 
     let accounts = [];
     try { accounts = await DataAccess.getAccounts(); }
     catch (err) { accounts = []; }
-
     if (accounts.length <= 1) { UIService.showToast('Minimal harus ada 1 akun!', TOAST.DANGER); return; }
 
     UtilityService.showConfirmDialog(`Hapus akun "${username}"?`, async () => {
@@ -403,14 +359,11 @@ const AppAuth = {
         await DataAccess.deleteAccount(username);
         UIService.showToast('Akun dihapus.', TOAST.WARNING);
         await AppAuth.renderAccountManager();
-      } catch (err) {
-        AppError.handle(err, 'Menghapus akun');
-      }
+      } catch (err) { AppError.handle(err, 'Menghapus akun'); }
     });
   }
 };
 
-/* ==================== INIT ==================== */
 document.addEventListener('DOMContentLoaded', function() {
   AppNavbar.init();
 });
