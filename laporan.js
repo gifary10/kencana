@@ -1,4 +1,4 @@
-// laporan.js — Report Page (async Google Sheets) - UPDATED with Timeline Chart from Schedule Data (No Status Labels)
+// laporan.js — Report Page (async Google Sheets) - UPDATED with Modern Vertical Timeline
 const ReportPage = {
   _currentReportType: 'jsa',
   _loadedTabs: new Set(),
@@ -62,12 +62,11 @@ const ReportPage = {
       return;
     }
 
-    // Aktifkan tab default tapi langsung tampilkan banner pilih proyek
     this._currentReportType = 'jsa';
     document.querySelectorAll('#reportTabs .tab-nav__btn').forEach((btn, idx) => {
       btn.classList.toggle('tab-nav__btn--active', idx === 0);
     });
-    this.renderReport(); // akan tampilkan banner "pilih proyek" karena belum ada yang dipilih
+    this.renderReport();
   },
 
   showFlowBanner(icon, title, message, buttonLabel, buttonAction) {
@@ -90,7 +89,6 @@ const ReportPage = {
       if ((tab === 'wm' || tab === 'schedule') && !this._data.wm.length) {
         this._data.wm = await DataAccess.getAllWorkMethods();
       }
-      // Load data jadwal dari sheet jadwal
       if (tab === 'schedule' && !this._data.schedule.length) {
         this._data.schedule = await StorageService.getData('jadwal');
       }
@@ -114,7 +112,6 @@ const ReportPage = {
       this.renderReport();
       return;
     }
-    // Load data tab aktif jika belum pernah dimuat
     const tab = this._currentReportType;
     if (!this._loadedTabs.has(tab)) {
       await this._loadTabData(tab);
@@ -132,7 +129,6 @@ const ReportPage = {
 
     const projectId = document.getElementById('selectReportProject')?.value || '';
     if (!projectId) {
-      // Belum pilih proyek — tampilkan banner langsung tanpa fetch data
       this.renderReport();
       return;
     }
@@ -148,7 +144,6 @@ const ReportPage = {
     const projectId = document.getElementById('selectReportProject')?.value || '';
     const company   = this._data.company;
 
-    // Guard: proyek wajib dipilih sebelum laporan ditampilkan
     if (!projectId) {
       document.getElementById('reportOutput').innerHTML = `
         <div class="report-container">
@@ -172,19 +167,14 @@ const ReportPage = {
     }
     html += '</div>';
     document.getElementById('reportOutput').innerHTML = html;
-
-    // Render timeline chart jika tab schedule
-    if (this._currentReportType === 'schedule') {
-      setTimeout(() => this.renderTimelineChart(projectId), 100);
-    }
   },
 
   createReportRow(label, value) {
-    return `<td><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
+    return `<tr><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
   },
 
   // ============================================================
-  // REPORT HEADER — TANPA nama proyek & TANPA tanggal
+  // REPORT HEADER
   // ============================================================
   buildReportHeader(company, title, titleIcon='bi-file-earmark-pdf') {
     if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div></div></div>`;
@@ -213,7 +203,7 @@ const ReportPage = {
   },
 
   // ============================================================
-  // INFORMASI PROYEK — KOMPONEN UTAMA DI BAGIAN ATAS
+  // INFORMASI PROYEK
   // ============================================================
   buildProjectInfoSection(project, includeAllFields=true) {
     if(!project) return '';
@@ -233,7 +223,7 @@ const ReportPage = {
   },
 
   // ============================================================
-  // LEMBAR PENGESAHAN — TANPA tanggal
+  // LEMBAR PENGESAHAN
   // ============================================================
   buildApprovalSection(preparedBy, reviewedBy, approvedBy) {
     return `<div class="report-section-title"><i class="bi bi-check2-square"></i> Lembar Pengesahan</div>
@@ -260,12 +250,11 @@ const ReportPage = {
   },
 
   // ============================================================
-  // SCHEDULE REPORT WITH TIMELINE CHART - SEMUA DATA DARI SCHEDULE SHEET
+  // MODERN VERTICAL TIMELINE SCHEDULE REPORT
   // ============================================================
   buildScheduleReport(projectId, company) {
     const project = projectId ? this._data.projects.find(p => p.id === projectId) : null;
     
-    // Ambil data JADWAL dari sheet jadwal — INI SATU-SATUNYA SUMBER DATA UNTUK TIMELINE
     let scheduleData = [];
     if (projectId) {
       scheduleData = this._data.schedule.filter(s => s.project_id === projectId);
@@ -284,356 +273,340 @@ const ReportPage = {
     let html = '';
     html += this.buildReportHeader(company, 'JADWAL KERJA', 'bi-calendar-week');
 
-    // Informasi Proyek di bagian atas
+    // Informasi Proyek
     if (project) {
       html += this.buildProjectInfoSection(project, false);
     }
 
-    // Timeline Chart Container
+    // Summary Stats
+    const totalItems = scheduleData.length;
+    const itemsWithDates = scheduleData.filter(s => s.start_date && s.end_date).length;
+    const completedItems = scheduleData.filter(s => {
+      if (!s.end_date) return false;
+      const end = new Date(s.end_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return end < today;
+    }).length;
+    const inProgressItems = scheduleData.filter(s => {
+      if (!s.start_date || !s.end_date) return false;
+      const start = new Date(s.start_date);
+      const end = new Date(s.end_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return start <= today && end >= today;
+    }).length;
+
     html += `
-    <div class="report-section-title" id="timelineChartTitle">
-      <i class="bi bi-bar-chart-steps"></i> Timeline Pekerjaan
-    </div>
-    <div class="card mb-4 no-print" id="timelineChartCard">
-      <div class="card-body">
-        <div id="timelineChart" style="overflow-x:auto;overflow-y:auto;">
-          <div id="timelineCanvasWrapper"></div>
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="report-stat-mini">
+          <div class="report-stat-mini__icon" style="background:#eff6ff;color:#3b82f6;">
+            <i class="bi bi-list-ol"></i>
+          </div>
+          <div class="report-stat-mini__value">${totalItems}</div>
+          <div class="report-stat-mini__label">Total Tahapan</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="report-stat-mini">
+          <div class="report-stat-mini__icon" style="background:#f0fdf4;color:#16a34a;">
+            <i class="bi bi-check-circle"></i>
+          </div>
+          <div class="report-stat-mini__value">${completedItems}</div>
+          <div class="report-stat-mini__label">Selesai</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="report-stat-mini">
+          <div class="report-stat-mini__icon" style="background:#fffbeb;color:#f59e0b;">
+            <i class="bi bi-arrow-repeat"></i>
+          </div>
+          <div class="report-stat-mini__value">${inProgressItems}</div>
+          <div class="report-stat-mini__label">Berlangsung</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="report-stat-mini">
+          <div class="report-stat-mini__icon" style="background:#f8fafc;color:#64748b;">
+            <i class="bi bi-calendar-check"></i>
+          </div>
+          <div class="report-stat-mini__value">${itemsWithDates}</div>
+          <div class="report-stat-mini__label">Terjadwal</div>
         </div>
       </div>
     </div>`;
 
-    // Tabel Detail Jadwal
-    html += `
-    <div class="report-section-title">
-      <i class="bi bi-table"></i> Detail Jadwal Kerja
-    </div>
-    <div class="table-responsive">
-      <table class="table table-bordered table-sm">
-        <thead>
-          <tr>
-            <th class="text-center" style="width:40px;">No</th>
-            <th>Dokumen</th>
-            <th>Tahapan Kerja</th>
-            <th>Proses / Kegiatan</th>
-            <th class="text-center" style="width:110px;">Tanggal Mulai</th>
-            <th class="text-center" style="width:110px;">Tanggal Selesai</th>
-            <th class="text-center" style="width:80px;">Durasi (Hari)</th>
-          </tr>
-        </thead>
-        <tbody>`;
+    // Modern Vertical Timeline
+    html += `<div class="report-section-title"><i class="bi bi-clock-history"></i> Timeline Pekerjaan</div>`;
 
     if (scheduleData.length === 0) {
-      html += `<tr><td colspan="7" class="text-center text-muted py-4">Tidak ada data jadwal kerja. Silakan buat Jadwal Kerja terlebih dahulu melalui menu Jadwal Kerja.</td></tr>`;
+      html += `<div class="flow-guard-banner">
+        <div class="flow-guard-banner__icon"><i class="bi bi-calendar-x"></i></div>
+        <h5 class="flow-guard-banner__title">Belum Ada Data Jadwal</h5>
+        <p class="flow-guard-banner__description">Silakan buat jadwal kerja melalui menu <strong>Jadwal Kerja</strong> terlebih dahulu.</p>
+        <button class="btn btn--primary" onclick="UIService.navigate('jadwal')">
+          <i class="bi bi-calendar-week"></i> Buka Jadwal Kerja
+        </button>
+      </div>`;
     } else {
-      let validScheduleCount = 0;
-      scheduleData.forEach((item, index) => {
-        const hasDates = item.start_date && item.end_date;
-        const dateValid = hasDates && new Date(item.start_date) <= new Date(item.end_date);
-        
-        let duration = '-';
-        if (dateValid) {
-          const start = new Date(item.start_date);
-          const end = new Date(item.end_date);
-          const diffTime = Math.abs(end - start);
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          duration = diffDays + ' hari';
-          validScheduleCount++;
-        }
-
-        html += `
-          <tr>
-            <td class="text-center">${index + 1}</td>
-            <td>${UtilityService.escapeHtml(item.document_number || '—')}</td>
-            <td>${UtilityService.escapeHtml(item.work_stage || '—')}</td>
-            <td style="font-size:.78rem;">${UtilityService.escapeHtml(item.work_process || '—')}</td>
-            <td class="text-center">${item.start_date ? UtilityService.formatDate(item.start_date) : '—'}</td>
-            <td class="text-center">${item.end_date ? UtilityService.formatDate(item.end_date) : '—'}</td>
-            <td class="text-center">${duration}</td>
-          </tr>`;
-      });
-      
-      // Tambahkan catatan jika tidak ada jadwal dengan tanggal valid
-      if (validScheduleCount === 0 && scheduleData.length > 0) {
-        html += `<tr><td colspan="7" class="text-center text-warning py-2" style="background:#fffbeb;">
-          <i class="bi bi-exclamation-triangle"></i> Tidak ada jadwal dengan tanggal yang lengkap. Silakan isi tanggal mulai dan selesai pada setiap tahapan pekerjaan.
-        </td></tr>`;
-      }
+      html += this.buildModernVerticalTimeline(scheduleData, project);
     }
-
-    html += `
-        </tbody>
-      </table>
-    </div>`;
 
     html += this.buildReportFooter(company);
     return html;
   },
 
   // ============================================================
-  // RENDER TIMELINE CHART — 100% BERDASARKAN DATA DARI SHEET JADWAL
-  // TANPA STATUS (BERLANGSUNG, SELESAI, MENDATANG) - FOKUS HANYA TAHAPAN & TIMELINE
+  // MODERN VERTICAL TIMELINE BUILDER
   // ============================================================
-  renderTimelineChart(projectId) {
-    const chartContainer = document.getElementById('timelineChart');
-    const chartTitle = document.getElementById('timelineChartTitle');
-    if (!chartContainer) return;
-
-    // Ambil data proyek yang sedang dipilih (hanya untuk info nama proyek)
-    const project = this._data.projects.find(p => p.id === projectId);
+  buildModernVerticalTimeline(scheduleItems, project) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    // AMBIL DATA JADWAL DARI SHEET JADWAL — INI SATU-SATUNYA SUMBER
-    let scheduleItems = this._data.schedule.filter(s => s.project_id === projectId);
-    
-    // Filter hanya yang memiliki tanggal mulai dan selesai VALID
-    const validItems = scheduleItems.filter(s => {
-      if (!s.start_date || !s.end_date) return false;
-      const start = new Date(s.start_date);
-      const end = new Date(s.end_date);
-      return !isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end;
+    // Group by document number
+    const grouped = {};
+    scheduleItems.forEach(item => {
+      const docKey = item.document_number || 'Tanpa Nomor';
+      if (!grouped[docKey]) grouped[docKey] = [];
+      grouped[docKey].push(item);
     });
 
-    if (validItems.length === 0) {
-      chartContainer.innerHTML = `
-        <div class="flow-guard-banner" style="padding:1rem;">
-          <div class="flow-guard-banner__icon"><i class="bi bi-calendar-x"></i></div>
-          <h5 class="flow-guard-banner__title">Belum Ada Jadwal dengan Tanggal Lengkap</h5>
-          <p class="flow-guard-banner__description">Silakan buka menu <strong>Jadwal Kerja</strong> dan isi tanggal mulai dan selesai untuk setiap tahapan pekerjaan.</p>
-          <button class="btn btn--primary" onclick="UIService.navigate('jadwal')">
-            <i class="bi bi-calendar-week"></i> Buka Jadwal Kerja
-          </button>
-        </div>`;
-      return;
-    }
+    const docColors = [
+      { bg: '#eff6ff', border: '#3b82f6', dot: '#3b82f6', icon: 'bi-file-earmark-text' },
+      { bg: '#f0fdf4', border: '#16a34a', dot: '#16a34a', icon: 'bi-file-earmark-check' },
+      { bg: '#fffbeb', border: '#f59e0b', dot: '#f59e0b', icon: 'bi-file-earmark-richtext' },
+      { bg: '#fef2f2', border: '#ef4444', dot: '#ef4444', icon: 'bi-file-earmark-medical' },
+      { bg: '#f5f3ff', border: '#8b5cf6', dot: '#8b5cf6', icon: 'bi-file-earmark-code' },
+      { bg: '#f0f9ff', border: '#0ea5e9', dot: '#0ea5e9', icon: 'bi-file-earmark-zip' },
+      { bg: '#fff1f2', border: '#e11d48', dot: '#e11d48', icon: 'bi-file-earmark-lock' },
+      { bg: '#fdf2f8', border: '#db2777', dot: '#db2777', icon: 'bi-file-earmark-person' },
+    ];
 
-    // ============================================================
-    // TENTUKAN RENTANG WAKTU CHART BERDASARKAN DATA JADWAL TERKECIL DAN TERBESAR
-    // ============================================================
-    let minDate = null;
-    let maxDate = null;
-    
-    validItems.forEach(item => {
-      const start = new Date(item.start_date);
-      const end = new Date(item.end_date);
-      if (!minDate || start < minDate) minDate = start;
-      if (!maxDate || end > maxDate) maxDate = end;
-    });
-    
-    // Jika proyek memiliki tanggal proyek, gunakan sebagai patokan tambahan
-    if (project && project.start_date && project.end_date) {
-      const projStart = new Date(project.start_date);
-      const projEnd = new Date(project.end_date);
-      if (projStart < minDate) minDate = projStart;
-      if (projEnd > maxDate) maxDate = projEnd;
-    }
-    
-    if (!minDate || !maxDate) {
-      chartContainer.innerHTML = '<p class="text-center text-muted py-4">Tidak dapat menentukan rentang waktu.</p>';
-      return;
-    }
+    let docIndex = 0;
+    let globalIndex = 0;
+    let html = '';
 
-    // Tambah padding 7 hari di kiri dan kanan agar lebih nyaman dilihat
-    minDate.setDate(minDate.getDate() - 7);
-    maxDate.setDate(maxDate.getDate() + 7);
-    
-    // Pastikan minDate <= maxDate
-    if (minDate > maxDate) {
-      const temp = minDate;
-      minDate = maxDate;
-      maxDate = temp;
-    }
+    // Timeline container
+    html += `<div class="modern-timeline" style="position:relative;padding-left:0;">`;
 
-    const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
-    
-    // Konfigurasi canvas
-    const rowHeight = 38;
-    const leftMargin = 210;
-    const rightMargin = 30;
-    const topMargin = 45;
-    const bottomMargin = 20;
-    const barHeight = 22;
-    const colWidth = 5; // pixel per hari
-    
-    const canvasWidth = Math.max(leftMargin + totalDays * colWidth + rightMargin, 900);
-    const canvasHeight = topMargin + validItems.length * rowHeight + bottomMargin;
-    
-    // Buat wrapper untuk canvas
-    const wrapper = document.getElementById('timelineCanvasWrapper') || document.createElement('div');
-    wrapper.id = 'timelineCanvasWrapper';
-    wrapper.innerHTML = `
-      <div style="overflow-x:auto;border:1px solid var(--color-border);border-radius:8px;background:#fff;">
-        <canvas id="timelineCanvas" width="${canvasWidth}" height="${canvasHeight}" 
-                style="display:block;min-width:100%;"></canvas>
-      </div>`;
-    chartContainer.innerHTML = '';
-    chartContainer.appendChild(wrapper);
-    
-    const canvas = document.getElementById('timelineCanvas');
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    
-    // Background putih
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-    
-    // ============================================================
-    // DRAW HEADER BACKGROUND
-    // ============================================================
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(0, 0, canvasWidth, topMargin);
-    
-    // ============================================================
-    // DRAW MONTH LABELS
-    // ============================================================
-    ctx.fillStyle = '#f1f5f9';
-    ctx.font = 'bold 10px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    
-    let currentMonth = null;
-    let monthStartX = leftMargin;
-    
-    for (let d = 0; d <= totalDays; d++) {
-      const date = new Date(minDate);
-      date.setDate(date.getDate() + d);
-      const monthKey = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+    // Draw the main vertical line
+    html += `<div style="position:absolute;left:48px;top:0;bottom:0;width:3px;background:linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 50%, #e2e8f0 100%);z-index:1;"></div>`;
+
+    Object.entries(grouped).forEach(([docNum, items]) => {
+      const colorScheme = docColors[docIndex % docColors.length];
       
-      if (monthKey !== currentMonth) {
-        if (currentMonth !== null) {
-          const monthWidth = leftMargin + d * colWidth - monthStartX;
-          if (monthWidth > 40) {
-            ctx.fillText(currentMonth, monthStartX + 4, 20);
+      // Document group header
+      html += `
+      <div style="position:relative;z-index:2;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;margin-left:0;">
+          <div style="width:40px;height:40px;border-radius:50%;background:${colorScheme.bg};border:3px solid ${colorScheme.border};display:flex;align-items:center;justify-content:center;z-index:3;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+            <i class="bi ${colorScheme.icon}" style="font-size:1.1rem;color:${colorScheme.border};"></i>
+          </div>
+          <div style="flex:1;">
+            <h4 style="margin:0;font-size:1rem;font-weight:700;color:#1e293b;line-height:1.3;">
+              <i class="bi bi-diagram-3" style="color:${colorScheme.border};"></i> 
+              ${UtilityService.escapeHtml(docNum)}
+            </h4>
+            <span style="font-size:0.75rem;color:#64748b;font-weight:500;">
+              <i class="bi bi-list-ol"></i> ${items.length} tahapan
+            </span>
+          </div>
+        </div>
+      </div>`;
+
+      // Items for this document
+      items.forEach((item, idx) => {
+        globalIndex++;
+        const hasDates = item.start_date && item.end_date;
+        const startDate = item.start_date ? new Date(item.start_date) : null;
+        const endDate = item.end_date ? new Date(item.end_date) : null;
+        
+        // Determine status
+        let statusLabel = 'Belum Terjadwal';
+        let statusColor = '#94a3b8';
+        let statusBg = '#f1f5f9';
+        let statusIcon = 'bi-clock';
+        
+        if (hasDates && startDate && endDate) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
+          
+          if (end < today) {
+            statusLabel = 'Selesai';
+            statusColor = '#16a34a';
+            statusBg = '#f0fdf4';
+            statusIcon = 'bi-check-circle-fill';
+          } else if (start <= today && end >= today) {
+            statusLabel = 'Berlangsung';
+            statusColor = '#f59e0b';
+            statusBg = '#fffbeb';
+            statusIcon = 'bi-arrow-repeat';
+          } else if (start > today) {
+            statusLabel = 'Mendatang';
+            statusColor = '#3b82f6';
+            statusBg = '#eff6ff';
+            statusIcon = 'bi-calendar-event';
+          }
+          
+          if (start > end) {
+            statusLabel = 'Tgl Tidak Valid';
+            statusColor = '#ef4444';
+            statusBg = '#fef2f2';
+            statusIcon = 'bi-exclamation-triangle-fill';
           }
         }
-        currentMonth = monthKey;
-        monthStartX = leftMargin + d * colWidth;
+
+        // Calculate duration
+        let durationDisplay = '-';
+        if (startDate && endDate && startDate <= endDate) {
+          const diffTime = Math.abs(endDate - startDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          durationDisplay = `${diffDays} hari`;
+        }
+
+        // Format dates
+        const startDisplay = item.start_date ? UtilityService.formatDate(item.start_date) : '—';
+        const endDisplay = item.end_date ? UtilityService.formatDate(item.end_date) : '—';
+        const startShort = item.start_date ? new Date(item.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
+        const endShort = item.end_date ? new Date(item.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
+        const yearLabel = item.start_date ? new Date(item.start_date).getFullYear() : (item.end_date ? new Date(item.end_date).getFullYear() : '');
+
+        // Timeline item
+        html += `
+        <div style="position:relative;z-index:2;margin-bottom:20px;margin-left:0;">
+          <div style="display:flex;gap:16px;">
+            <!-- Timeline dot and connector -->
+            <div style="width:40px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;">
+              <div style="width:18px;height:18px;border-radius:50%;background:${statusColor};border:3px solid #ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.15);z-index:3;margin-top:4px;"></div>
+              ${idx < items.length - 1 ? `<div style="width:2px;flex:1;background:linear-gradient(180deg, #cbd5e1 0%, #e2e8f0 100%);margin-top:-2px;"></div>` : ''}
+            </div>
+            
+            <!-- Content card -->
+            <div style="flex:1;background:#ffffff;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all 0.3s ease;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+              <!-- Card header with step number and status -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${colorScheme.bg};border-bottom:1px solid #e2e8f0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:${colorScheme.border};color:white;font-weight:700;font-size:0.8rem;">
+                    ${globalIndex}
+                  </span>
+                  <div>
+                    <div style="font-weight:700;font-size:0.88rem;color:#1e293b;line-height:1.3;">
+                      ${UtilityService.escapeHtml(item.work_stage || 'Tahapan Tanpa Nama')}
+                    </div>
+                    <div style="font-size:0.72rem;color:#64748b;line-height:1.2;">
+                      ${UtilityService.escapeHtml(docNum)}
+                    </div>
+                  </div>
+                </div>
+                <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:${statusBg};color:${statusColor};font-size:0.72rem;font-weight:600;white-space:nowrap;">
+                  <i class="bi ${statusIcon}" style="font-size:0.7rem;"></i> ${statusLabel}
+                </span>
+              </div>
+              
+              <!-- Card body -->
+              <div style="padding:12px 16px;">
+                <!-- Dates row -->
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                  <!-- Start date -->
+                  <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;">
+                    <i class="bi bi-calendar-plus" style="color:#3b82f6;font-size:0.85rem;"></i>
+                    <div>
+                      <div style="font-size:0.68rem;color:#64748b;line-height:1;">Mulai</div>
+                      <div style="font-size:0.82rem;font-weight:600;color:#1e293b;line-height:1.3;">${startShort || startDisplay}</div>
+                    </div>
+                  </div>
+                  
+                  <!-- Arrow -->
+                  <div style="color:#94a3b8;font-size:0.8rem;">
+                    <i class="bi bi-arrow-right"></i>
+                  </div>
+                  
+                  <!-- End date -->
+                  <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;">
+                    <i class="bi bi-calendar-check" style="color:#16a34a;font-size:0.85rem;"></i>
+                    <div>
+                      <div style="font-size:0.68rem;color:#64748b;line-height:1;">Selesai</div>
+                      <div style="font-size:0.82rem;font-weight:600;color:#1e293b;line-height:1.3;">${endShort || endDisplay}</div>
+                    </div>
+                  </div>
+                  
+                  <!-- Duration badge -->
+                  <div style="display:flex;align-items:center;gap:4px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:6px 10px;border-radius:8px;font-size:0.75rem;font-weight:600;margin-left:auto;">
+                    <i class="bi bi-hourglass-split" style="font-size:0.75rem;"></i>
+                    ${durationDisplay}
+                  </div>
+                </div>
+                
+                <!-- Progress bar -->
+                <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-bottom:10px;">
+                  <div style="height:100%;background:${statusColor};border-radius:3px;transition:width 0.3s ease;${
+                    statusLabel === 'Selesai' ? 'width:100%;' : 
+                    statusLabel === 'Berlangsung' && startDate && endDate ? 
+                      `width:${Math.min(100, Math.max(5, Math.round(((today - startDate) / (endDate - startDate)) * 100)))}%;` : 
+                    statusLabel === 'Mendatang' ? 'width:5%;' : 'width:0%;'
+                  }"></div>
+                </div>
+                
+                <!-- Work process description -->
+                ${item.work_process ? `
+                <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;border:1px dashed #e2e8f0;">
+                  <i class="bi bi-gear" style="color:#6366f1;font-size:0.85rem;margin-top:1px;"></i>
+                  <div>
+                    <div style="font-size:0.72rem;color:#64748b;font-weight:600;margin-bottom:2px;">PROSES / KEGIATAN</div>
+                    <div style="font-size:0.82rem;color:#334155;line-height:1.5;">
+                      ${UtilityService.escapeHtml(item.work_process)}
+                    </div>
+                  </div>
+                </div>
+                ` : `
+                <div style="padding:8px 10px;background:#f8fafc;border-radius:8px;border:1px dashed #e2e8f0;text-align:center;">
+                  <span style="font-size:0.75rem;color:#94a3b8;">
+                    <i class="bi bi-info-circle"></i> Belum ada deskripsi proses
+                  </span>
+                </div>
+                `}
+                
+                <!-- Year label if visible -->
+                ${yearLabel ? `
+                <div style="text-align:right;margin-top:8px;">
+                  <span style="font-size:0.68rem;color:#94a3b8;font-weight:500;">
+                    <i class="bi bi-dot"></i> ${yearLabel}
+                  </span>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      });
+      
+      docIndex++;
+    });
+
+    html += `</div>`; // Close modern-timeline
+
+    // Print-specific styles
+    html += `
+    <style>
+      @media print {
+        .modern-timeline > div[style*="position:absolute"] {
+          background: #cbd5e1 !important;
+        }
+        .modern-timeline [style*="border-radius:50%"] {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .modern-timeline [style*="border-radius:12px"] {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
       }
-    }
-    if (currentMonth && leftMargin + totalDays * colWidth - monthStartX > 40) {
-      ctx.fillText(currentMonth, monthStartX + 4, 20);
-    }
-    
-    // ============================================================
-    // DRAW DATE MARKERS (setiap 7 hari)
-    // ============================================================
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = '8px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    
-    for (let d = 0; d <= totalDays; d += 7) {
-      const date = new Date(minDate);
-      date.setDate(date.getDate() + d);
-      const x = leftMargin + d * colWidth;
-      ctx.fillText(date.getDate(), x, topMargin - 8);
-    }
-    
-    // ============================================================
-    // DRAW GRID VERTICAL LINES
-    // ============================================================
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 0.5;
-    
-    for (let d = 0; d <= totalDays; d++) {
-      const x = leftMargin + d * colWidth;
-      ctx.beginPath();
-      ctx.moveTo(x, topMargin);
-      ctx.lineTo(x, canvasHeight);
-      ctx.stroke();
-    }
-    
-    // ============================================================
-    // DRAW ROW BACKGROUNDS (zebra)
-    // ============================================================
-    for (let i = 0; i < validItems.length; i++) {
-      const y = topMargin + i * rowHeight;
-      ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f8fafc';
-      ctx.fillRect(0, y, canvasWidth, rowHeight);
-    }
-    
-    // ============================================================
-    // DRAW ROW LABELS (Nama Tahapan Kerja)
-    // ============================================================
-    ctx.font = 'bold 9px Inter, sans-serif';
-    ctx.textAlign = 'right';
-    
-    for (let i = 0; i < validItems.length; i++) {
-      const y = topMargin + i * rowHeight;
-      const item = validItems[i];
-      
-      // Nomor dokumen (lebih kecil)
-      ctx.fillStyle = '#64748b';
-      ctx.font = '7px Inter, sans-serif';
-      ctx.fillText(item.document_number || '', leftMargin - 8, y + 11);
-      
-      // Nama tahapan kerja
-      let label = item.work_stage || '';
-      if (label.length > 28) label = label.substring(0, 26) + '...';
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 8px Inter, sans-serif';
-      ctx.fillText(label, leftMargin - 8, y + 25);
-      
-      // Grid horizontal
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(0, y + rowHeight - 1);
-      ctx.lineTo(canvasWidth, y + rowHeight - 1);
-      ctx.stroke();
-    }
-    
-    // ============================================================
-    // DRAW BARS (GANTT BARS) — WARNA BIRU KONSISTEN (TIDAK ADA STATUS)
-    // ============================================================
-    const barColor = '#3b82f6'; // Warna biru konsisten untuk semua bar
-    
-    for (let i = 0; i < validItems.length; i++) {
-      const item = validItems[i];
-      const startDate = new Date(item.start_date);
-      const endDate = new Date(item.end_date);
-      
-      // Hitung posisi bar
-      const startDay = Math.ceil((startDate - minDate) / (1000 * 60 * 60 * 24));
-      const endDay = Math.ceil((endDate - minDate) / (1000 * 60 * 60 * 24));
-      const barStartX = leftMargin + startDay * colWidth;
-      const barEndX = leftMargin + endDay * colWidth + colWidth;
-      const barWidth = Math.max(barEndX - barStartX, colWidth + 4);
-      const y = topMargin + i * rowHeight + (rowHeight - barHeight) / 2;
-      const radius = 4;
-      
-      // Draw rounded rectangle dengan warna konsisten
-      ctx.fillStyle = barColor;
-      ctx.beginPath();
-      ctx.moveTo(barStartX + radius, y);
-      ctx.lineTo(barStartX + barWidth - radius, y);
-      ctx.quadraticCurveTo(barStartX + barWidth, y, barStartX + barWidth, y + radius);
-      ctx.lineTo(barStartX + barWidth, y + barHeight - radius);
-      ctx.quadraticCurveTo(barStartX + barWidth, y + barHeight, barStartX + barWidth - radius, y + barHeight);
-      ctx.lineTo(barStartX + radius, y + barHeight);
-      ctx.quadraticCurveTo(barStartX, y + barHeight, barStartX, y + barHeight - radius);
-      ctx.lineTo(barStartX, y + radius);
-      ctx.quadraticCurveTo(barStartX, y, barStartX + radius, y);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Tampilkan label tanggal jika bar cukup lebar
-      if (barWidth > 70) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 7px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        const startLabel = startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-        const endLabel = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-        const midX = barStartX + barWidth / 2;
-        ctx.fillText(`${startLabel} - ${endLabel}`, midX, y + barHeight - 6);
-      } else if (barWidth > 35) {
-        // Hanya tampilkan ikon tanggal
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 6px Inter, sans-serif';
-        const midX = barStartX + barWidth / 2;
-        ctx.fillText('📅', midX, y + barHeight - 6);
-      }
-    }
+    </style>`;
+
+    return html;
   },
 
   // ============================================================
@@ -648,7 +621,6 @@ const ReportPage = {
     let html='';
     html+=this.buildReportHeader(company,'JOB SAFETY ANALYSIS','bi-journal-check');
     
-    // Informasi Proyek di bagian atas
     if (project) {
       html += this.buildProjectInfoSection(project, false);
     }
@@ -658,7 +630,6 @@ const ReportPage = {
       if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
       html+=`<div class="page-break-inside-avoid">`;
       
-      // Detail JSA
       html+=`<div class="report-section-title"><i class="bi bi-file-text"></i> Detail Dokumen JSA</div>`;
       html+=`<table class="table table-bordered table-sm"><tbody>
         ${this.createReportRow('No. Dokumen JSA',`<strong>${UtilityService.escapeHtml(jsa.document_number)}</strong>`)}
@@ -713,7 +684,6 @@ const ReportPage = {
     let html='';
     html+=this.buildReportHeader(company,'METODE KERJA','bi-diagram-3');
     
-    // Informasi Proyek di bagian atas
     if (project) {
       html += this.buildProjectInfoSection(project, false);
     }
@@ -723,7 +693,6 @@ const ReportPage = {
       if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
       html+=`<div class="page-break-inside-avoid">`;
       
-      // Detail Metode Kerja
       html+=`<div class="report-section-title"><i class="bi bi-file-text"></i> Detail Dokumen Metode Kerja</div>`;
       html+=`<table class="table table-bordered table-sm"><tbody>
         ${this.createReportRow('No. Dokumen',`<strong>${UtilityService.escapeHtml(wm.document_number)}</strong>`)}
@@ -746,7 +715,7 @@ const ReportPage = {
   },
 
   // ============================================================
-  // COST PROJECT REPORT (Dengan Keuangan)
+  // COST PROJECT REPORT
   // ============================================================
   buildPOReport(projectId, company) {
     let list=[...this._data.po];
@@ -757,12 +726,10 @@ const ReportPage = {
     let html='';
     html+=this.buildReportHeader(company,'COST PROJECT','bi-cart');
     
-    // Informasi Proyek di bagian atas
     if(project) {
       html+=this.buildProjectInfoSection(project, true);
     }
     
-    // ===== DAFTAR ITEM PEMBELIAN =====
     html+=`<div class="report-section-title"><i class="bi bi-cart-check"></i> Daftar Item Pembelian</div>
     <table class="table table-bordered table-sm"><thead><tr>
       <th class="col-width-30">No</th>
@@ -799,7 +766,6 @@ const ReportPage = {
       <div class="col-6 text-end"><strong>Grand Total:</strong> <span class="text-success" style="font-size:1.1rem;">${UtilityService.formatCurrency(grandTotal)}</span></div>
     </div></div>`;
 
-    // ===== KEUANGAN PROYEK (CASHFLOW) =====
     let projects=[...this._data.projects];
     if(projectId) projects=projects.filter(p=>p.id===projectId);
     
@@ -857,7 +823,6 @@ const ReportPage = {
         html += `</div>`;
       });
 
-      // Rekapitulasi Seluruh Proyek
       if (!projectId && projects.length > 1) {
         const totalRem = totalBudget - totalSpent;
         const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
@@ -937,7 +902,6 @@ const ReportPage = {
       if (index > 0) html += '<hr style="border:2px dashed var(--color-border);margin:24px 0;">';
       html += '<div class="page-break-inside-avoid">';
       
-      // Informasi Proyek di bagian atas
       html += this.buildProjectInfoSection(project, false);
 
       if (!workers.length) {
