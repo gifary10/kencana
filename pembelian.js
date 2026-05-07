@@ -1,8 +1,9 @@
-// pembelian.js — Procurement (async Google Sheets) - Optimized
+// pembelian.js — Procurement (async Google Sheets) - Optimized with Event Delegation
 const ProcurementPage = {
   _currentItems: [],
   _cachedProjects: [],
-  _editId: null, // ID item yang sedang diedit (null = mode tambah baru)
+  _editId: null,
+  _listClickHandler: null,
 
   render() {
     return `
@@ -53,7 +54,28 @@ const ProcurementPage = {
       sel.innerHTML = '<option value="">Semua Proyek</option>';
       this._cachedProjects.forEach(p => { const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
     }
+    this._attachDelegatedListeners();
     await this.loadPOList();
+  },
+
+  // ============================================================
+  // EVENT DELEGATION — Pasang listener SEKALI pada parent statis
+  // ============================================================
+  _attachDelegatedListeners() {
+    const listView = document.getElementById('procurementListView');
+    if (listView) {
+      if (this._listClickHandler) {
+        listView.removeEventListener('click', this._listClickHandler);
+      }
+      this._listClickHandler = async (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit') await ProcurementPage.editPO(id);
+        if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
+      };
+      listView.addEventListener('click', this._listClickHandler);
+    }
   },
 
   showPOList() {
@@ -187,9 +209,8 @@ const ProcurementPage = {
 
     try {
       if (isEdit) {
-        // Mode edit: hapus record lama dulu, lalu simpan dengan ID yang sama
         await DataAccess.deletePO(this._editId);
-        const item = items[0]; // Edit hanya mendukung 1 item
+        const item = items[0];
         const updated = {
           id: this._editId,
           project_id: projectId,
@@ -207,7 +228,6 @@ const ProcurementPage = {
         await DataAccess.savePO(updated);
         UIService.showToast('Item berhasil diperbarui!', TOAST.SUCCESS);
       } else {
-        // Mode tambah baru: buat ID baru untuk setiap item
         const poArray = items.map((item, idx) => ({
           id: 'po_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).substr(2, 6),
           project_id: projectId,
@@ -239,7 +259,6 @@ const ProcurementPage = {
       if (supplierFilter) list = list.filter(po => (po.supplier || '') === supplierFilter);
       list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
-      // Populate supplier filter dropdown from full unfiltered list
       const supplierSel = document.getElementById('selectFilterPOSupplier');
       if (supplierSel) {
         const currentSupplierVal = supplierSel.value;
@@ -274,16 +293,7 @@ const ProcurementPage = {
               </td>
             </tr>`;
           }).join('');
-          // Event delegation — ganti elemen untuk hapus listener lama
-          const freshTable = tableBody.cloneNode(true);
-          tableBody.parentNode.replaceChild(freshTable, tableBody);
-          freshTable.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'edit')   await ProcurementPage.editPO(id);
-            if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
-          });
+          // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent
         }
         if (cardList) {
           cardList.innerHTML = list.map(po => {
@@ -300,16 +310,7 @@ const ProcurementPage = {
               </div>
             </div></div>`;
           }).join('');
-          // Event delegation — ganti elemen untuk hapus listener lama
-          const freshCard = cardList.cloneNode(true);
-          cardList.parentNode.replaceChild(freshCard, cardList);
-          freshCard.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'edit')   await ProcurementPage.editPO(id);
-            if (action === 'delete') await ProcurementPage.deletePOConfirm(id);
-          });
+          // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent
         }
       }
     } catch (err) {

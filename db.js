@@ -203,8 +203,18 @@ const DB = {
     _showLoading();
     try {
       const r = await _post({ action: 'upsert', sheet, data });
-      AppCache.invalidateRelated(sheet);
-      if (isPriority) setTimeout(() => { AppCache.invalidate(sheet); AppCache.refreshStale(sheet); }, 500);
+      
+      // INVALIDASI CERDAS: Gunakan project_id jika tersedia
+      const options = {};
+      if (data.project_id) {
+        options.projectId = data.project_id;
+      }
+      if (data.id) {
+        options.entityId = data.id;
+      }
+      AppCache.invalidateRelated(sheet, options);
+      
+      if (isPriority) setTimeout(() => { AppCache.refreshStale(sheet); }, 500);
       return r.row;
     } catch (error) {
       if (oldCache) AppCache.set(key, oldCache, sheet);
@@ -221,9 +231,23 @@ const DB = {
 
     _showLoading();
     try {
+      // Ambil data dulu untuk dapat project_id sebelum delete
+      let projectId = null;
+      try {
+        const existing = await this.getById(sheet, id);
+        if (existing && existing.project_id) {
+          projectId = existing.project_id;
+        }
+      } catch (e) { /* Abaikan jika gagal fetch existing */ }
+      
       const r = await _post({ action: 'delete', sheet, id });
-      AppCache.invalidateRelated(sheet);
-      if (isPriority) setTimeout(() => { AppCache.invalidate(sheet); AppCache.refreshStale(sheet); }, 500);
+      
+      // INVALIDASI CERDAS
+      const options = {};
+      if (projectId) options.projectId = projectId;
+      AppCache.invalidateRelated(sheet, options);
+      
+      if (isPriority) setTimeout(() => { AppCache.refreshStale(sheet); }, 500);
       return r.deleted;
     } catch (error) {
       if (oldCache) AppCache.set(key, oldCache, sheet);
@@ -234,37 +258,87 @@ const DB = {
 
   async deleteWhere(sheet, field, value) {
     const isPriority = AppCache.isPrioritySheet(sheet);
-    AppCache.invalidate(sheet);
+    
     _showLoading();
     try {
       const r = await _post({ action: 'deleteWhere', sheet, field, value });
+      
+      // INVALIDASI CERDAS
+      const options = {};
+      if (field === 'project_id' && value) {
+        options.projectId = value;
+      }
+      AppCache.invalidateRelated(sheet, options);
+      
       if (isPriority) setTimeout(() => AppCache.refreshStale(sheet), 500);
       return r.deleted;
     } finally { _hideLoading(); }
   },
 
   async batchUpsert(operations) {
-    const sheets = [...new Set(operations.map(op => op.sheet))];
-    sheets.forEach(s => AppCache.invalidateRelated(s));
+    // Kumpulkan sheets dan project_ids yang terpengaruh
+    const affected = {};
+    operations.forEach(op => {
+      if (!op.sheet || !op.data) return;
+      if (!affected[op.sheet]) affected[op.sheet] = new Set();
+      if (op.data.project_id) {
+        affected[op.sheet].add(op.data.project_id);
+      }
+    });
+    
     _showLoading();
     try {
       const r = await _post({ action: 'batchUpsert', operations });
-      sheets.forEach(sheet => {
-        if (AppCache.isPrioritySheet(sheet)) setTimeout(() => AppCache.refreshStale(sheet), 500);
+      
+      // INVALIDASI CERDAS per sheet dengan project_id spesifik
+      Object.entries(affected).forEach(([sheet, projectIds]) => {
+        if (projectIds.size > 0) {
+          // Invalidate per project
+          projectIds.forEach(pid => {
+            AppCache.invalidateRelated(sheet, { projectId: pid });
+          });
+        } else {
+          // Full invalidate jika tidak ada project_id
+          AppCache.invalidateRelated(sheet);
+        }
+        if (AppCache.isPrioritySheet(sheet)) {
+          setTimeout(() => AppCache.refreshStale(sheet), 500);
+        }
       });
+      
       return r.rows;
     } finally { _hideLoading(); }
   },
 
   async batchDelete(operations) {
-    const sheets = [...new Set(operations.map(op => op.sheet))];
-    sheets.forEach(s => AppCache.invalidateRelated(s));
+    // Kumpulkan sheets yang terpengaruh
+    const affected = {};
+    operations.forEach(op => {
+      if (!op.sheet) return;
+      if (!affected[op.sheet]) affected[op.sheet] = new Set();
+      if (op.field === 'project_id' && op.value) {
+        affected[op.sheet].add(op.value);
+      }
+    });
+    
     _showLoading();
     try {
       const r = await _post({ action: 'batchDelete', operations });
-      sheets.forEach(sheet => {
-        if (AppCache.isPrioritySheet(sheet)) setTimeout(() => AppCache.refreshStale(sheet), 500);
+      
+      // INVALIDASI CERDAS
+      Object.entries(affected).forEach(([sheet, projectIds]) => {
+        if (projectIds.size > 0) {
+          projectIds.forEach(pid => {
+            AppCache.invalidateRelated(sheet, { projectId: pid });
+          });
+        } else {
+          AppCache.invalidateRelated(sheet);
+        }
+        if (AppCache.isPrioritySheet(sheet)) {
+          setTimeout(() => AppCache.refreshStale(sheet), 500);
+        }
       });
+      
       return r.deleted;
     } finally { _hideLoading(); }
   },
@@ -369,10 +443,17 @@ const DataAccess = {
 
   async deleteProject(id) {
     if (!id) return false;
+    
+    const projectId = id;
+    
     _showLoading();
-    try { await _post({ action: 'deleteProject', projectId: id }); }
+    try { 
+      await _post({ action: 'deleteProject', projectId: id }); 
+    }
     finally { _hideLoading(); }
-    AppCache.invalidateRelated('projects');
+    
+    // INVALIDASI CERDAS: Gunakan project_id spesifik
+    AppCache.invalidateRelated('projects', { projectId });
     StorageService.addAuditLog('DELETE_PROJECT', `Proyek ${id} beserta data terkait dihapus`);
     return true;
   },
@@ -444,30 +525,42 @@ const DataAccess = {
   async saveScheduleRows(rows) {
     if (!rows || rows.length === 0) return [];
     const now = new Date().toISOString();
-    const operations = rows.map(row => ({
-      sheet: 'jadwal',
-      data: {
-        id: row.id,
-        project_id: row.project_id,
-        work_method_id: row.work_method_id,
-        document_number: row.document_number,
-        step_number: row.step_number,
-        work_stage: row.work_stage || '',
-        work_process: row.work_process || '',
-        start_date: row.start_date || '',
-        end_date: row.end_date || '',
-        updated_at: now
-      }
-    }));
+    
+    // Kumpulkan project_id yang terpengaruh
+    const affectedProjects = new Set();
+    
+    const operations = rows.map(row => {
+      if (row.project_id) affectedProjects.add(row.project_id);
+      return {
+        sheet: 'jadwal',
+        data: {
+          id: row.id,
+          project_id: row.project_id,
+          work_method_id: row.work_method_id,
+          document_number: row.document_number,
+          step_number: row.step_number,
+          work_stage: row.work_stage || '',
+          work_process: row.work_process || '',
+          start_date: row.start_date || '',
+          end_date: row.end_date || '',
+          updated_at: now
+        }
+      };
+    });
     const result = await DB.batchUpsert(operations);
-    AppCache.invalidate('jadwal');
+    
+    // INVALIDASI CERDAS: Per project
+    affectedProjects.forEach(pid => {
+      AppCache.invalidateRelated('jadwal', { projectId: pid });
+    });
+    
     return result;
   },
 
   async deleteScheduleByProject(projectId) {
     if (!projectId) return false;
     await DB.deleteWhere('jadwal', 'project_id', projectId);
-    AppCache.invalidate('jadwal');
+    AppCache.invalidateRelated('jadwal', { projectId });
     return true;
   },
 
@@ -512,7 +605,7 @@ const DataAccess = {
   async saveManpower({ project_id, personnel_ids }) {
     if (!project_id) return null;
     await DB.deleteWhere('manpower', 'project_id', project_id);
-    AppCache.invalidate('manpower');
+    
     const operations = (personnel_ids || []).map(pid => ({
       sheet: 'manpower',
       data: {
@@ -523,14 +616,17 @@ const DataAccess = {
       }
     }));
     if (operations.length > 0) await DB.batchUpsert(operations);
-    AppCache.invalidate('manpower');
+    
+    // INVALIDASI CERDAS: Hanya untuk proyek spesifik
+    AppCache.invalidateRelated('manpower', { projectId: project_id });
     return personnel_ids;
   },
 
   async deleteManpowerByProject(projectId) {
     if (!projectId) return false;
     await DB.deleteWhere('manpower', 'project_id', projectId);
-    AppCache.invalidate('manpower');
+    // INVALIDASI CERDAS: Hanya untuk proyek spesifik
+    AppCache.invalidateRelated('manpower', { projectId });
     return true;
   },
 
@@ -557,16 +653,28 @@ const DataAccess = {
 
   async saveMultiplePO(poArray) {
     if (!poArray || poArray.length === 0) return [];
-    const operations = poArray.map(po => ({
-      sheet: 'procurement',
-      data: {
-        ...po,
-        updated_at: new Date().toISOString(),
-        created_at: po.created_at || new Date().toISOString()
-      }
-    }));
+    
+    // Kumpulkan project_id yang terpengaruh
+    const affectedProjects = new Set();
+    
+    const operations = poArray.map(po => {
+      if (po.project_id) affectedProjects.add(po.project_id);
+      return {
+        sheet: 'procurement',
+        data: {
+          ...po,
+          updated_at: new Date().toISOString(),
+          created_at: po.created_at || new Date().toISOString()
+        }
+      };
+    });
     const results = await DB.batchUpsert(operations);
-    AppCache.invalidate('procurement');
+    
+    // INVALIDASI CERDAS: Per project
+    affectedProjects.forEach(pid => {
+      AppCache.invalidateRelated('procurement', { projectId: pid });
+    });
+    
     return results;
   },
 

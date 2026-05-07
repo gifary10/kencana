@@ -56,6 +56,28 @@ const BG_REFRESH_THRESHOLD = Object.freeze({
   default: 0.70,
 });
 
+// DEPENDENCY MAP: Mendefinisikan hubungan antar sheet
+// Format: { sheet: [sheets_yang_bergantung_padanya] }
+const DEPENDENCY_MAP = Object.freeze({
+  'projects': ['jsa', 'work_methods', 'manpower', 'procurement', 'jadwal'],
+  'work_methods': ['jsa', 'jadwal'],
+  'personnel': ['manpower'],
+  'company': ['laporan'],
+});
+
+// REVERSE DEPENDENCY MAP: Untuk invalidasi naik (bottom-up)
+// Format: { sheet: [sheets_yang_mempengaruhinya] }
+const REVERSE_DEPENDENCY_MAP = (() => {
+  const reverse = {};
+  Object.entries(DEPENDENCY_MAP).forEach(([source, targets]) => {
+    targets.forEach(target => {
+      if (!reverse[target]) reverse[target] = [];
+      reverse[target].push(source);
+    });
+  });
+  return Object.freeze(reverse);
+})();
+
 const AppCache = {
   getPrioritySheets() {
     return Object.keys(PRIORITY_SHEETS).filter(s => PRIORITY_SHEETS[s].preload);
@@ -75,9 +97,42 @@ const AppCache = {
 
   buildKey(sheet, params) {
     if (params && Object.keys(params).length > 0) {
-      return sheet + '::' + JSON.stringify(params);
+      // Urutkan params untuk konsistensi key
+      const sorted = {};
+      Object.keys(params).sort().forEach(k => {
+        sorted[k] = params[k];
+      });
+      return sheet + '::' + JSON.stringify(sorted);
     }
     return sheet;
+  },
+
+  /**
+   * Ekstrak dependencies dari params cache key
+   * @param {string} sheet - Nama sheet
+   * @param {object} params - Parameter yang digunakan untuk fetch
+   * @returns {string[]} Array dependency strings
+   */
+  extractDependencies(sheet, params = {}) {
+    const deps = [sheet]; // Selalu depend pada sheet utamanya
+    
+    if (params.filterField === 'project_id' && params.filterValue) {
+      deps.push(`projects:${params.filterValue}`);
+    }
+    
+    if (params.filterField === 'work_method_id' && params.filterValue) {
+      deps.push(`work_methods:${params.filterValue}`);
+    }
+    
+    if (params.filterField === 'personnel_id' && params.filterValue) {
+      deps.push(`personnel:${params.filterValue}`);
+    }
+    
+    // Tambahkan reverse dependencies
+    const reverseDeps = REVERSE_DEPENDENCY_MAP[sheet] || [];
+    reverseDeps.forEach(revDep => deps.push(revDep));
+    
+    return [...new Set(deps)]; // Hapus duplikat
   },
 
   getTTL(sheet) {
@@ -127,55 +182,140 @@ const AppCache = {
 
   set(key, value, sheet, meta = {}) {
     const now = Date.now();
+    
+    // Ekstrak dependencies dari params di key
+    let dependsOn = meta.dependsOn || [];
+    
+    // Jika key mengandung params (format: sheet::{"filterField":"project_id","filterValue":"proj_123"})
+    if (key.includes('::')) {
+      try {
+        const parts = key.split('::');
+        if (parts.length === 2) {
+          const params = JSON.parse(parts[1]);
+          dependsOn = [...dependsOn, ...this.extractDependencies(sheet, params)];
+        }
+      } catch (e) {
+        // Key bukan JSON params, gunakan sebagai string biasa
+        dependsOn = [sheet];
+      }
+    } else {
+      // Key sederhana (hanya nama sheet)
+      dependsOn = [sheet];
+    }
+    
+    // Tambahkan reverse dependencies
+    const reverseDeps = REVERSE_DEPENDENCY_MAP[sheet] || [];
+    dependsOn = [...new Set([...dependsOn, ...reverseDeps])];
+    
     _cache[key] = value;
     _cacheTimestamps[key] = now;
-    _cacheMeta[key] = { ..._cacheMeta[key], ...meta, sheet, isPriority: this.isPrioritySheet(sheet), hasStale: this.hasStaleSupport(sheet), lastUpdated: now };
+    _cacheMeta[key] = {
+      ..._cacheMeta[key],
+      ...meta,
+      sheet,
+      dependsOn,
+      isPriority: this.isPrioritySheet(sheet),
+      hasStale: this.hasStaleSupport(sheet),
+      lastUpdated: now
+    };
   },
 
-  invalidate(sheet) {
+  /**
+   * Invalidasi cache berdasarkan dependency tag
+   * @param {string} dependency - Tag dependency (e.g., 'jsa', 'projects:proj_123', 'work_methods:wm_456')
+   */
+  invalidateByDependency(dependency) {
     let count = 0;
     Object.keys(_cache).forEach(key => {
-      if (key === sheet || key.startsWith(sheet + '::')) {
+      const meta = _cacheMeta[key];
+      if (meta && meta.dependsOn && meta.dependsOn.includes(dependency)) {
         delete _cache[key];
         delete _cacheTimestamps[key];
         delete _cacheMeta[key];
         count++;
       }
     });
+    
+    // Juga invalidasi cache yang bergantung pada sheet ini (cascading upward)
+    if (!dependency.includes(':')) {
+      const dependents = DEPENDENCY_MAP[dependency] || [];
+      dependents.forEach(dep => {
+        Object.keys(_cache).forEach(key => {
+          const meta = _cacheMeta[key];
+          if (meta && meta.dependsOn && meta.dependsOn.includes(dep)) {
+            delete _cache[key];
+            delete _cacheTimestamps[key];
+            delete _cacheMeta[key];
+            count++;
+          }
+        });
+      });
+    }
+    
+    return count;
   },
 
-  invalidateRelated(sheet) {
-    this.invalidate(sheet);
-    switch (sheet) {
-      case 'projects':
-        ['jsa', 'work_methods', 'manpower', 'procurement', 'jadwal'].forEach(s => {
-          this.invalidate(s);
-          this.invalidate(s + '::count');
-          this.invalidate(s + '::summary');
-        });
-        this.invalidate('dashboard_stats');
-        this.invalidate('laporan');
-        break;
-      case 'work_methods':
-        this.invalidate('jadwal');
-        this.invalidate('dashboard_stats');
-        this.invalidate('laporan');
-        break;
-      case 'personnel':
-        this.invalidate('manpower');
-        break;
-      case 'jsa':
-      case 'procurement':
-      case 'manpower':
-      case 'jadwal':
-        this.invalidate('dashboard_stats');
-        this.invalidate('laporan');
-        break;
-      case 'company':
-        this.invalidate('dashboard_stats');
-        this.invalidate('laporan');
-        break;
+  /**
+   * Invalidasi cache untuk sheet tertentu (presisi dengan dependencies)
+   * @param {string} sheet - Nama sheet
+   * @param {object} options - Opsi tambahan
+   * @param {string} options.projectId - ID proyek spesifik (opsional)
+   * @param {string} options.entityId - ID entitas spesifik (opsional)
+   */
+  invalidate(sheet, options = {}) {
+    let count = 0;
+    
+    if (options.projectId) {
+      // Invalidasi presisi: hanya cache yang terkait proyek tertentu
+      count += this.invalidateByDependency(`projects:${options.projectId}`);
+    } else if (options.entityId) {
+      // Invalidasi presisi: hanya cache yang terkait entitas tertentu
+      count += this.invalidateByDependency(`${sheet}:${options.entityId}`);
+    } else {
+      // Invalidasi global untuk sheet
+      count += this.invalidateByDependency(sheet);
+      
+      // Juga invalidasi cache simple keys
+      Object.keys(_cache).forEach(key => {
+        if (key === sheet || key.startsWith(sheet + '::')) {
+          delete _cache[key];
+          delete _cacheTimestamps[key];
+          delete _cacheMeta[key];
+          count++;
+        }
+      });
     }
+    
+    return count;
+  },
+
+  /**
+   * Invalidasi cache terkait (cascading) saat ada perubahan data
+   * @param {string} sheet - Sheet yang diubah
+   * @param {object} options - Opsi tambahan
+   * @param {string} options.projectId - ID proyek spesifik (opsional)
+   * @param {string} options.entityId - ID entitas spesifik (opsional)
+   */
+  invalidateRelated(sheet, options = {}) {
+    // Invalidasi sheet yang diubah
+    this.invalidate(sheet, options);
+    
+    // Invalidasi dashboard_stats dan laporan jika relevan
+    const sheetToInvalidate = ['jsa', 'work_methods', 'manpower', 'procurement', 'jadwal', 'projects', 'company'];
+    if (sheetToInvalidate.includes(sheet)) {
+      this.invalidateByDependency('dashboard_stats');
+      this.invalidateByDependency('laporan');
+    }
+    
+    // Cascading invalidate berdasarkan dependency map
+    const dependents = DEPENDENCY_MAP[sheet] || [];
+    dependents.forEach(dep => {
+      if (options.projectId) {
+        this.invalidateByDependency(`projects:${options.projectId}`);
+      } else {
+        this.invalidate(dep);
+      }
+    });
   },
 
   clear() {
@@ -189,6 +329,31 @@ const AppCache = {
   getPending(key) { return _pending[key] || null; },
   setPending(key, promise) { _pending[key] = promise; },
   deletePending(key) { delete _pending[key]; },
+
+  /**
+   * Dapatkan statistik cache untuk debugging
+   */
+  getStats() {
+    const totalKeys = Object.keys(_cache).length;
+    const bySheet = {};
+    
+    Object.entries(_cacheMeta).forEach(([key, meta]) => {
+      const sheet = meta.sheet || 'unknown';
+      if (!bySheet[sheet]) bySheet[sheet] = { count: 0, dependencies: new Set() };
+      bySheet[sheet].count++;
+      (meta.dependsOn || []).forEach(dep => bySheet[sheet].dependencies.add(dep));
+    });
+    
+    return {
+      totalKeys,
+      bySheet: Object.fromEntries(
+        Object.entries(bySheet).map(([sheet, data]) => [
+          sheet,
+          { count: data.count, dependencies: [...data.dependencies] }
+        ])
+      )
+    };
+  },
 
   async warmup(sheets = null) {
     const sheetsToWarm = sheets || this.getPrioritySheets();

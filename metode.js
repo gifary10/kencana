@@ -2,6 +2,7 @@ const WorkMethodPage = {
   _currentWorkMethod: null,
   _currentStep: 1,
   _cachedProjects: [],
+  _listClickHandler: null,
 
   render() {
     return `<div id="workMethodListView">
@@ -51,7 +52,28 @@ const WorkMethodPage = {
       sel.innerHTML = '<option value="">Semua Proyek</option>';
       this._cachedProjects.forEach(p => { const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
     }
+    this._attachDelegatedListeners();
     await this.loadWorkMethodList();
+  },
+
+  // ============================================================
+  // EVENT DELEGATION — Pasang listener SEKALI pada parent statis
+  // ============================================================
+  _attachDelegatedListeners() {
+    const listView = document.getElementById('workMethodListView');
+    if (listView) {
+      if (this._listClickHandler) {
+        listView.removeEventListener('click', this._listClickHandler);
+      }
+      this._listClickHandler = async (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit') await WorkMethodPage.editWorkMethod(id);
+        if (action === 'delete') await WorkMethodPage.deleteWorkMethod(id);
+      };
+      listView.addEventListener('click', this._listClickHandler);
+    }
   },
 
   showWorkMethodList() {
@@ -240,19 +262,7 @@ const WorkMethodPage = {
           const p = projects.find(x => x.id === wm.project_id);
           return `<div class="card"><div class="card-body py-3"><div class="fw-bold">${UtilityService.escapeHtml(wm.document_number)}</div><div style="font-size:.7rem;">${p ? UtilityService.escapeHtml(p.name) : '-'}</div><div class="d-flex gap-2 mt-2"><button class="btn btn--xs btn--outline-warning" data-action="edit" data-id="${wm.id}">Edit</button><button class="btn btn--xs btn--outline-danger" data-action="delete" data-id="${wm.id}">Hapus</button></div></div></div>`;
         }).join('');
-
-        [tableBody, cardList].forEach(container => {
-          if (!container) return;
-          const fresh = container.cloneNode(true);
-          container.parentNode.replaceChild(fresh, container);
-          fresh.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'edit') await WorkMethodPage.editWorkMethod(id);
-            if (action === 'delete') await WorkMethodPage.deleteWorkMethod(id);
-          });
-        });
+        // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent
       }
     } catch (err) { AppError.handle(err, 'Memuat daftar Metode Kerja'); }
   },

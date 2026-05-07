@@ -1,9 +1,10 @@
-// mp.js — Manpower: master personel + assignment per proyek (Optimized)
+// mp.js — Manpower: master personel + assignment per proyek (Optimized with Event Delegation)
 
 const ManpowerPage = {
   _personnel: [],
   _projects:  [],
   _assignments: {}, // { project_id: Set(personnel_id) }
+  _masterClickHandler: null,
 
   // ======================================================
   // HELPERS
@@ -181,7 +182,28 @@ const ManpowerPage = {
       });
     }
 
+    this._attachDelegatedMasterListeners();
     this._renderMasterTable();
+  },
+
+  // ============================================================
+  // EVENT DELEGATION — Master Personel Table
+  // ============================================================
+  _attachDelegatedMasterListeners() {
+    const tabMaster = document.getElementById('tabMaster');
+    if (tabMaster) {
+      if (this._masterClickHandler) {
+        tabMaster.removeEventListener('click', this._masterClickHandler);
+      }
+      this._masterClickHandler = (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id, name } = btn.dataset;
+        if (action === 'edit')   ManpowerPage.editPersonnel(id);
+        if (action === 'delete') ManpowerPage.deletePersonnel(id, name);
+      };
+      tabMaster.addEventListener('click', this._masterClickHandler);
+    }
   },
 
   // ======================================================
@@ -335,17 +357,7 @@ const ManpowerPage = {
         + '<button class="btn btn--xs btn--outline-danger"       data-action="delete" data-id="' + p.id + '" data-name="' + UtilityService.escapeHtml(p.name).replace(/"/g, '&quot;') + '"><i class="bi bi-trash"></i></button>'
         + '</td></tr>';
     }).join('');
-
-    // Event delegation — cloneNode untuk hapus semua listener lama sebelum pasang baru
-    const freshTbody = tbody.cloneNode(true);
-    tbody.parentNode.replaceChild(freshTbody, tbody);
-    freshTbody.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      const { action, id, name } = btn.dataset;
-      if (action === 'edit')   ManpowerPage.editPersonnel(id);
-      if (action === 'delete') ManpowerPage.deletePersonnel(id, name);
-    });
+    // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent (tabMaster)
   },
 
   resetPersonnelForm() {

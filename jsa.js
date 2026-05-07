@@ -3,6 +3,7 @@ const JSAPage = {
   _currentStep: 1,
   _cachedProjects: [],
   _cachedWorkMethods: [],
+  _listClickHandler: null,
 
   render() {
     return `
@@ -53,7 +54,28 @@ const JSAPage = {
       sel.innerHTML = '<option value="">Semua Proyek</option>';
       projects.forEach(p => { const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
     }
+    this._attachDelegatedListeners();
     await this.loadJSAList();
+  },
+
+  // ============================================================
+  // EVENT DELEGATION — Pasang listener SEKALI pada parent statis
+  // ============================================================
+  _attachDelegatedListeners() {
+    const listView = document.getElementById('jsaListView');
+    if (listView) {
+      if (this._listClickHandler) {
+        listView.removeEventListener('click', this._listClickHandler);
+      }
+      this._listClickHandler = async (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit') await JSAPage.editJSA(id);
+        if (action === 'delete') await JSAPage.deleteJSA(id);
+      };
+      listView.addEventListener('click', this._listClickHandler);
+    }
   },
 
   showJSAList() {
@@ -288,19 +310,7 @@ const JSAPage = {
           const permitDisplay = activePermits.length ? activePermits.map(pm=>`<span class="badge bg-warning text-dark me-1" style="font-size:.68rem;">${UtilityService.escapeHtml(pm)}</span>`).join('') : '<span class="text-muted">-</span>';
           return `<div class="card"><div class="card-body"><div class="fw-bold">${UtilityService.escapeHtml(jsa.document_number)}</div><div style="font-size:.7rem;">${p ? UtilityService.escapeHtml(p.name) : '-'} | ${UtilityService.formatDate(jsa.date)}</div><div class="d-flex gap-2 mt-2"><button class="btn btn--xs btn--outline-warning" data-action="edit" data-id="${jsa.id}">Edit</button><button class="btn btn--xs btn--outline-danger" data-action="delete" data-id="${jsa.id}">Hapus</button></div></div></div>`;
         }).join('');
-
-        [tableBody, cardList].forEach(container => {
-          if (!container) return;
-          const fresh = container.cloneNode(true);
-          container.parentNode.replaceChild(fresh, container);
-          fresh.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'edit') await JSAPage.editJSA(id);
-            if (action === 'delete') await JSAPage.deleteJSA(id);
-          });
-        });
+        // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent
       }
     } catch (err) { AppError.handle(err, 'Memuat daftar JSA'); }
   },

@@ -457,8 +457,8 @@ const SchedulePage = {
 
       await DB.batchUpsert(operations);
 
-      // Invalidate cache jadwal supaya reload berikutnya fresh
-      AppCache.invalidate(SHEETS.SCHEDULE);
+      // INVALIDASI CERDAS: Hanya untuk proyek yang sedang aktif
+      AppCache.invalidateRelated(SHEETS.SCHEDULE, { projectId: this._currentProjectId });
 
       // Reset dirty flags
       this._scheduleRows.forEach(s => s.isDirty = false);

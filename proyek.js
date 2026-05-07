@@ -1,4 +1,7 @@
 const ProjectPage = {
+  _tableClickHandler: null,
+  _cardClickHandler: null,
+
   render() {
     return `
       <div class="page-header no-print">
@@ -44,7 +47,31 @@ const ProjectPage = {
     </div>`;
   },
 
-  async init() { await this.loadProjectTable(); },
+  async init() {
+    this._attachDelegatedListeners();
+    await this.loadProjectTable();
+  },
+
+  // ============================================================
+  // EVENT DELEGATION — Pasang listener SEKALI pada parent statis
+  // ============================================================
+  _attachDelegatedListeners() {
+    const tableContainer = document.getElementById('projectTableContainer');
+    if (tableContainer) {
+      // Hapus listener lama (jika ada) untuk mencegah duplikasi
+      if (this._tableClickHandler) {
+        tableContainer.removeEventListener('click', this._tableClickHandler);
+      }
+      this._tableClickHandler = async (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit') await ProjectPage.editProject(id);
+        if (action === 'delete') await ProjectPage.deleteProject(id);
+      };
+      tableContainer.addEventListener('click', this._tableClickHandler);
+    }
+  },
 
   async loadProjectTable() {
     try {
@@ -78,16 +105,7 @@ const ProjectPage = {
               </td>
             </tr>`;
           }).join('');
-
-          const freshTable = tableBody.cloneNode(true);
-          tableBody.parentNode.replaceChild(freshTable, tableBody);
-          freshTable.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'edit') await ProjectPage.editProject(id);
-            if (action === 'delete') await ProjectPage.deleteProject(id);
-          });
+          // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent
         }
       }
 
@@ -117,16 +135,7 @@ const ProjectPage = {
               </div>
             </div></div>`;
           }).join('');
-
-          const freshCard = cardList.cloneNode(true);
-          cardList.parentNode.replaceChild(freshCard, cardList);
-          freshCard.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'edit') await ProjectPage.editProject(id);
-            if (action === 'delete') await ProjectPage.deleteProject(id);
-          });
+          // TIDAK perlu cloneNode lagi — listener sudah terpasang di parent
         }
       }
     } catch (err) {
