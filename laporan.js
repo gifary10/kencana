@@ -208,11 +208,6 @@ const ReportPage = {
     </div></div>`;
   },
 
-  buildReportFooter(company) {
-    if(!company) return '';
-    return `<div class="report-footer no-screen"><div class="report-footer__content"><div class="report-footer__left"><strong>${UtilityService.escapeHtml(company.name)}</strong>${company.address?` | ${UtilityService.escapeHtml(company.address)}`:''}</div><div class="report-footer__right">${company.contact?`Telp: ${UtilityService.escapeHtml(company.contact)}`:''}${company.email?` | Email: ${UtilityService.escapeHtml(company.email)}`:''}</div></div><div class="report-footer__disclaimer">Dokumen ini dicetak dari sistem KPT Project v4.0 | Halaman ini sah tanpa tanda tangan basah</div></div>`;
-  },
-
   buildProjectInfoSection(project, includeAllFields=true) {
     if(!project) return '';
     let h=`<div class="report-section-title"><i class="bi bi-info-circle"></i> Informasi Proyek</div>
@@ -293,7 +288,6 @@ const ReportPage = {
       html += this.buildGanttChart(scheduleData, project);
     }
 
-    html += this.buildReportFooter(company);
     return html;
   },
 
@@ -786,9 +780,7 @@ const ReportPage = {
         }
         
         .report-footer {
-          border-top: 1px solid #e2e8f0 !important;
-          color: #94a3b8 !important;
-          font-size: 0.6rem;
+          display: none !important;
         }
         
         img { max-width: 100% !important; }
@@ -988,7 +980,6 @@ const ReportPage = {
       html+=this.buildApprovalSection(jsa.prepared_by, jsa.reviewed_by, jsa.approved_by);
       html+=`</div>`;
     });
-    html+=this.buildReportFooter(company);
     return html;
   },
 
@@ -1029,7 +1020,6 @@ const ReportPage = {
       html+=this.buildApprovalSection(wm.prepared_by, wm.reviewed_by, wm.approved_by);
       html+=`</div>`;
     });
-    html+=this.buildReportFooter(company);
     return html;
   },
 
@@ -1180,7 +1170,6 @@ const ReportPage = {
       }
     }
 
-    html += this.buildReportFooter(company);
     return html;
   },
 
@@ -1286,7 +1275,6 @@ const ReportPage = {
       html += '</div>';
     }
 
-    html += this.buildReportFooter(company);
     return html;
   }
 };
