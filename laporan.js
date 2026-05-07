@@ -13,7 +13,7 @@ const ReportPage = {
             <option value="">-- Pilih Proyek --</option>
           </select>
         </div>
-        <button class="btn btn--primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak PDF</button>
+        <button class="btn btn--primary no-print" onclick="ReportPage.printReport()"><i class="bi bi-printer"></i> Cetak PDF</button>
       </div>
     <div id="reportListView">
       <div class="card no-print"><div class="card-body p-0">
@@ -67,6 +67,23 @@ const ReportPage = {
       btn.classList.toggle('tab-nav__btn--active', idx === 0);
     });
     this.renderReport();
+  },
+
+  printReport() {
+    // Sembunyikan elemen no-print sebelum print
+    const noPrintElements = document.querySelectorAll('.no-print');
+    const originalDisplays = [];
+    noPrintElements.forEach(el => {
+      originalDisplays.push({ el, display: el.style.display });
+      el.style.display = 'none';
+    });
+    
+    window.print();
+    
+    // Kembalikan tampilan setelah print
+    originalDisplays.forEach(({ el, display }) => {
+      el.style.display = display;
+    });
   },
 
   showFlowBanner(icon, title, message, buttonLabel, buttonAction) {
@@ -191,8 +208,8 @@ const ReportPage = {
     if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div></div></div>`;
     return `<div class="report-header"><div class="report-header__layout">
       <div class="report-header__left">
+        <div class="report-header__logo-section"><img src="logo.png" alt="Logo" style="width:100%;height:100%"></div>
         <div class="report-header__company-info">
-          <div class="report-header__logo-section"><img src="logo.png" alt="Logo" style="width:100%;height:100%"></div>
           <div class="report-header__company-name">${UtilityService.escapeHtml(company.name)}</div>
           ${company.address?`<div class="report-header__company-detail"> ${UtilityService.escapeHtml(company.address)}</div>`:''}
           <div class="report-header__company-contact">
@@ -280,7 +297,7 @@ const ReportPage = {
         <div class="flow-guard-banner__icon"><i class="bi bi-calendar-x"></i></div>
         <h5 class="flow-guard-banner__title">Belum Ada Data Jadwal</h5>
         <p class="flow-guard-banner__description">Silakan buat jadwal kerja melalui menu <strong>Jadwal Kerja</strong> terlebih dahulu.</p>
-        <button class="btn btn--primary" onclick="UIService.navigate('jadwal')">
+        <button class="btn btn--primary no-print" onclick="UIService.navigate('jadwal')">
           <i class="bi bi-calendar-week"></i> Buka Jadwal Kerja
         </button>
       </div>`;
@@ -327,24 +344,6 @@ const ReportPage = {
       currentDayDate.setDate(currentDayDate.getDate() + 1);
     }
     
-    const weeks = [];
-    let currentDate = new Date(chartStartDate);
-    while (currentDate <= chartEndDate) {
-      const weekEnd = new Date(currentDate);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      if (weekEnd > chartEndDate) weekEnd.setTime(chartEndDate.getTime());
-      
-      weeks.push({
-        label: currentDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-        endLabel: weekEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-        startDate: new Date(currentDate),
-        endDate: new Date(weekEnd),
-        isCurrent: today >= currentDate && today <= weekEnd
-      });
-      
-      currentDate.setDate(currentDate.getDate() + 7);
-    }
-
     const months = [];
     for (let d = new Date(chartStartDate); d <= chartEndDate; d.setMonth(d.getMonth() + 1)) {
       months.push({
@@ -354,20 +353,23 @@ const ReportPage = {
       });
     }
 
+    // Hitung lebar label kolom tahapan (sekarang termasuk tanggal)
     const maxLabelLength = Math.max(...scheduleItems.map(item => {
-      const label = item.work_stage || item.work_process || 'Tahapan';
-      return label.length;
+      const taskLabel = item.work_stage || item.work_process || 'Tahapan';
+      let dateInfo = '';
+      if (item.start_date && item.end_date) {
+        const startLabel = new Date(item.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        const endLabel = new Date(item.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        dateInfo = ` (${startLabel} — ${endLabel})`;
+      }
+      return (taskLabel + dateInfo).length;
     }), 15);
-    const labelWidth = Math.max(200, Math.min(350, maxLabelLength * 8));
+    const labelWidth = Math.max(250, Math.min(400, maxLabelLength * 8));
 
     let html = '';
 
     html += `
     <style id="ganttDynamicStyle">
-      .report-landscape-gantt {
-        /* Container untuk landscape */
-      }
-      
       .gantt-wrapper {
         overflow-x: auto;
         border: 1px solid #e2e8f0;
@@ -418,7 +420,7 @@ const ReportPage = {
         padding: 0;
         border-bottom: 1px solid #f1f5f9;
         vertical-align: middle;
-        height: 40px;
+        height: 48px;
         position: relative;
       }
       .gantt-table tbody tr:nth-child(even) td {
@@ -428,12 +430,10 @@ const ReportPage = {
         background: #f1f5f9;
       }
       .gantt-task-label {
-        padding: 8px 12px;
+        padding: 6px 12px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        font-weight: 500;
-        color: #334155;
         border-right: 1px solid #e2e8f0;
         position: sticky;
         left: 0;
@@ -446,20 +446,22 @@ const ReportPage = {
       .gantt-table tbody tr:hover .gantt-task-label {
         background: #f1f5f9;
       }
+      .gantt-task-label__name {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.78rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .gantt-task-label__date {
+        font-size: 0.65rem;
+        color: #64748b;
+        font-weight: 500;
+        margin-top: 1px;
+      }
       .gantt-bar-cell {
         position: relative;
         border-right: none;
-      }
-      
-      .gantt-col-saturday {
-        background: rgba(253, 224, 71, 0.15) !important;
-        border-left: 1px solid rgba(253, 224, 71, 0.4) !important;
-        border-right: 1px solid rgba(253, 224, 71, 0.4) !important;
-      }
-      .gantt-col-sunday {
-        background: rgba(248, 113, 113, 0.12) !important;
-        border-left: 1px solid rgba(248, 113, 113, 0.35) !important;
-        border-right: 1px solid rgba(248, 113, 113, 0.35) !important;
       }
       
       .gantt-weekend-line-saturday {
@@ -485,7 +487,7 @@ const ReportPage = {
       
       .gantt-bar {
         position: absolute;
-        top: 8px;
+        top: 12px;
         height: 22px;
         border-radius: 11px;
         cursor: pointer;
@@ -583,24 +585,29 @@ const ReportPage = {
       
       @media (max-width: 768px) {
         .gantt-table thead th.gantt-label-header {
-          width: 140px;
-          min-width: 140px;
+          width: 180px;
+          min-width: 180px;
         }
         .gantt-task-label {
-          width: 140px;
-          min-width: 140px;
+          width: 180px;
+          min-width: 180px;
           font-size: 0.7rem;
+        }
+        .gantt-task-label__name {
+          font-size: 0.7rem;
+        }
+        .gantt-task-label__date {
+          font-size: 0.6rem;
         }
         .gantt-bar {
           font-size: 0.55rem;
           padding: 0 6px;
           height: 18px;
-          top: 10px;
+          top: 14px;
         }
       }
       
       @media print {
-        /* ORIENTASI LANDSCAPE KHUSUS UNTUK HALAMAN JADWAL */
         @page {
           size: A4 landscape;
           margin: 1cm 1.5cm;
@@ -609,119 +616,167 @@ const ReportPage = {
         body {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          background: white !important;
         }
         
-        /* Sembunyikan elemen yang tidak diperlukan */
-        .no-print,
+        body::before {
+          display: none !important;
+        }
+        
         .app-sidebar,
         .sidebar-overlay,
         .user-info-bar,
+        .hamburger-btn,
+        .no-print,
+        .btn,
+        .tab-nav,
+        .page-header,
+        .page-header__filter,
+        #reportTabs,
         .wizard__header,
         .wizard__footer,
-        .btn,
-        #loginContainer,
-        .app-toast-container,
-        .tab-nav,
         .step-pills,
         .nav-item,
         #navbarLoadingSpinner,
         .dropdown-menu,
         .modal-backdrop,
         .modal,
-        .page-header__filter,
-        #reportTabs,
-        .page-header,
-        .hamburger-btn { 
-          display: none !important; 
+        .app-toast-container {
+          display: none !important;
         }
         
-        .app-main-content { 
-          margin: 0 !important; 
-          padding: 0 !important; 
-          width: 100% !important; 
+        .app-main-content {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
         }
         
-        .report-container { 
-          padding: 0; 
-          max-width: 100%; 
-          width: 100%; 
+        .report-container {
+          padding: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
         }
         
         .gantt-wrapper {
-          overflow-x: visible;
+          overflow-x: visible !important;
           border: 1px solid #e2e8f0 !important;
           box-shadow: none !important;
+          page-break-inside: avoid;
         }
         
         .gantt-table {
-          font-size: 0.65rem;
-          min-width: auto;
-          width: 100%;
+          font-size: 0.65rem !important;
+          min-width: auto !important;
+          width: 100% !important;
         }
         
         .gantt-table thead th {
-          padding: 6px 2px;
-          font-size: 0.6rem;
+          padding: 6px 2px !important;
+          font-size: 0.6rem !important;
+          background: #1e293b !important;
+          color: #f1f5f9 !important;
+          border-bottom: 2px solid #334155 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         
         .gantt-table thead th.gantt-label-header {
-          padding: 6px 8px;
+          padding: 6px 8px !important;
+          background: #1e293b !important;
+          color: #f1f5f9 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .gantt-table thead th.gantt-month-header {
+          background: #1e293b !important;
+          color: #f1f5f9 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         
         .gantt-table tbody td {
-          height: 34px;
+          height: 42px !important;
+          background: white !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         
         .gantt-task-label {
-          padding: 6px 8px;
-          font-size: 0.62rem;
+          padding: 4px 8px !important;
+          font-size: 0.62rem !important;
+          background: white !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+        }
+        
+        .gantt-task-label__name {
+          font-size: 0.62rem !important;
+        }
+        
+        .gantt-task-label__date {
+          font-size: 0.55rem !important;
         }
         
         .gantt-bar {
-          height: 18px;
-          top: 7px;
-          font-size: 0.55rem;
+          height: 18px !important;
+          top: 11px !important;
+          font-size: 0.55rem !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+        }
+        
+        .gantt-bar--done {
+          background: #10b981 !important;
+          border: 1px solid #059669 !important;
+        }
+        
+        .gantt-bar--active {
+          background: #f59e0b !important;
+          border: 1px solid #d97706 !important;
+        }
+        
+        .gantt-bar--upcoming {
+          background: #3b82f6 !important;
+          border: 1px solid #2563eb !important;
+        }
+        
+        .gantt-bar--no-date {
+          background: #f1f5f9 !important;
+          border: 1px dashed #cbd5e1 !important;
+          color: #64748b !important;
         }
         
         .gantt-weekend-line-saturday {
+          background: #fbbf24 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
-          background: #fbbf24 !important;
         }
         
         .gantt-weekend-line-sunday {
+          background: #ef4444 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
-          background: #ef4444 !important;
         }
         
         .gantt-today-line {
+          background: #ef4444 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         
         .gantt-legend {
+          font-size: 0.65rem !important;
+          padding: 6px !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
-          font-size: 0.65rem;
-          padding: 6px;
         }
         
         .card {
           border: 1px solid #e2e8f0 !important;
           box-shadow: none !important;
           break-inside: avoid;
-          margin-bottom: 0.8rem;
+          margin-bottom: 0.8rem !important;
         }
         
         .card-header {
@@ -730,22 +785,22 @@ const ReportPage = {
           border-bottom: 1px solid #334155 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
-          padding: 0.5rem 0.75rem;
+          padding: 0.5rem 0.75rem !important;
         }
         
         .report-header {
           border-bottom: 2px solid #0f172a !important;
-          margin-bottom: 1rem;
-          padding-bottom: 0.5rem;
+          margin-bottom: 1rem !important;
+          padding-bottom: 0.5rem !important;
         }
         
         .report-section-title {
-          font-size: 0.9rem;
-          font-weight: 700;
+          font-size: 0.9rem !important;
+          font-weight: 700 !important;
           color: #1e3a8a !important;
           border-bottom: 1px solid #e2e8f0 !important;
-          padding-bottom: 0.25rem;
-          margin: 0.8rem 0 0.5rem;
+          padding-bottom: 0.25rem !important;
+          margin: 0.8rem 0 0.5rem !important;
         }
         
         .report-stat-mini {
@@ -755,53 +810,62 @@ const ReportPage = {
         }
         
         .badge {
-          padding: 2px 8px;
-          font-weight: 600;
+          padding: 2px 8px !important;
+          font-weight: 600 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+        }
+        
+        .table {
+          width: 100% !important;
+          border-collapse: collapse !important;
         }
         
         .table th {
           background: #0f172a !important;
           color: #f1f5f9 !important;
           border: 1px solid #e2e8f0 !important;
-          padding: 6px 8px;
-          font-size: 0.7rem;
+          padding: 6px 8px !important;
+          font-size: 0.7rem !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         
         .table td {
           border: 1px solid #e2e8f0 !important;
-          padding: 5px 8px;
-          font-size: 0.7rem;
+          padding: 5px 8px !important;
+          font-size: 0.7rem !important;
           background: #ffffff !important;
           color: #0f172a !important;
+        }
+        
+        .table tbody tr:nth-child(even) td {
+          background: #f8fafc !important;
         }
         
         .report-footer {
           display: none !important;
         }
         
+        .signature-box {
+          border: 1px solid #e2e8f0 !important;
+          page-break-inside: avoid;
+        }
+        
+        .flow-guard-banner {
+          page-break-inside: avoid;
+        }
+        
         img { max-width: 100% !important; }
         a[href]:after { content: none !important; }
       }
-      
-      /* Style khusus landscape untuk tampilan screen */
-      @media screen and (min-width: 1024px) {
-        .report-landscape-gantt .gantt-wrapper {
-          max-height: calc(100vh - 300px);
-          overflow-y: auto;
-        }
-      }
     </style>
 
-    <div class="report-landscape-gantt">
-      <div class="gantt-wrapper">
-        <table class="gantt-table">
-          <thead>
-            <tr>
-              <th class="gantt-label-header" rowspan="2">Tahapan Pekerjaan</th>`;
+    <div class="gantt-wrapper">
+      <table class="gantt-table">
+        <thead>
+          <tr>
+            <th class="gantt-label-header" rowspan="2">Tahapan Pekerjaan</th>`;
     
     months.forEach(month => {
       const monthDays = days.filter(d => d.date >= month.startDate && d.date <= month.endDate);
@@ -815,6 +879,16 @@ const ReportPage = {
 
     scheduleItems.forEach((item, idx) => {
       const taskLabel = item.work_stage || item.work_process || 'Tahapan';
+      
+      // Siapkan info tanggal untuk label
+      let dateDisplay = '';
+      if (item.start_date && item.end_date) {
+        const startLabel = new Date(item.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const endLabel = new Date(item.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        dateDisplay = `${startLabel} — ${endLabel}`;
+      } else {
+        dateDisplay = 'Belum dijadwalkan';
+      }
       
       let barClass = 'gantt-bar--upcoming';
       if (item.start_date && item.end_date) {
@@ -856,9 +930,11 @@ const ReportPage = {
 
       html += `<tr>`;
       
+      // KOLOM LABEL: Nama tahapan + tanggal di bawahnya
       html += `
-        <td class="gantt-task-label" title="${UtilityService.escapeHtml(taskLabel)}">
-          <div style="font-weight:600;color:#1e293b;font-size:0.78rem;overflow:hidden;text-overflow:ellipsis;">${idx + 1}. ${UtilityService.escapeHtml(taskLabel)}</div>
+        <td class="gantt-task-label" title="${UtilityService.escapeHtml(taskLabel)} — ${dateDisplay}">
+          <div class="gantt-task-label__name">${idx + 1}. ${UtilityService.escapeHtml(taskLabel)}</div>
+          <div class="gantt-task-label__date">${dateDisplay}</div>
         </td>`;
 
       html += `
@@ -892,7 +968,7 @@ const ReportPage = {
 
     html += `</tbody></table></div>
 
-    <div class="gantt-legend">
+    <div class="gantt-legend no-print">
       <div class="gantt-legend__item">
         <span class="gantt-legend__color" style="background:#10b981;"></span> Selesai
       </div>

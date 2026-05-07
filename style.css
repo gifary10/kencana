@@ -1070,94 +1070,147 @@ body::before {
 }
 
 @media print {
-  *, *::before, *::after { box-shadow: none !important; text-shadow: none !important; }
+  *, *::before, *::after { 
+    box-shadow: none !important; 
+    text-shadow: none !important; 
+  }
   
   body {
-    font-size: 11pt;
-    line-height: 1.5;
-    background: white;
-    color: var(--color-text);
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    background: white !important;
+    color: #0f172a !important;
   }
   
   body::before { display: none !important; }
   
+  /* Sembunyikan semua elemen UI interaktif */
   .no-print,
   .app-sidebar,
   .sidebar-overlay,
   .user-info-bar,
+  .hamburger-btn,
+  .btn,
+  .tab-nav,
+  .page-header,
+  .page-header__filter,
+  #reportTabs,
   .wizard__header,
   .wizard__footer,
-  .btn,
-  #loginContainer,
-  .app-toast-container,
-  .tab-nav,
   .step-pills,
   .nav-item,
   #navbarLoadingSpinner,
   .dropdown-menu,
   .modal-backdrop,
   .modal,
-  .page-header__filter { display: none !important; }
+  .app-toast-container,
+  #loginContainer { 
+    display: none !important; 
+  }
   
-  .app-main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-  .report-container { padding: 0; max-width: 100%; width: 100%; }
+  .app-main-content { 
+    margin: 0 !important; 
+    padding: 0 !important; 
+    width: 100% !important; 
+  }
+  
+  .report-container { 
+    padding: 0 !important; 
+    max-width: 100% !important; 
+    width: 100% !important; 
+    background: white !important;
+  }
   
   .card {
-    border: 1px solid var(--color-border) !important;
+    border: 1px solid #e2e8f0 !important;
     box-shadow: none !important;
     break-inside: avoid;
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem !important;
+    background: white !important;
   }
   
   .card-header {
-    background: var(--color-dark-surface) !important;
-    color: var(--color-dark-text) !important;
-    border-bottom: 1px solid var(--color-dark-border) !important;
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-bottom: 1px solid #334155 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    padding: 0.5rem 0.75rem !important;
   }
   
   .card-footer {
-    background: var(--color-bg) !important;
-    border-top: 1px solid var(--color-border) !important;
+    background: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   
-  .card-body { padding: var(--spacing-md) !important; }
+  .card-body { padding: 0.75rem !important; }
   
-  .table { width: 100%; border-collapse: collapse; }
+  .table { 
+    width: 100% !important; 
+    border-collapse: collapse !important; 
+    page-break-inside: auto;
+  }
   
   .table th {
-    background: var(--color-dark-surface-alt) !important;
-    color: var(--color-dark-text) !important;
-    font-weight: 600;
-    border: 1px solid var(--color-dark-border) !important;
-    padding: 8px 10px;
-    font-size: 9pt;
+    background: #0f172a !important;
+    color: #f1f5f9 !important;
+    font-weight: 600 !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    font-size: 8pt !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   
   .table td {
-    border: 1px solid var(--color-border) !important;
-    padding: 6px 10px;
-    font-size: 9pt;
-    background: var(--color-surface) !important;
-    color: var(--color-text) !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 5px 8px !important;
+    font-size: 8pt !important;
+    background: white !important;
+    color: #0f172a !important;
   }
   
-  .table tbody tr:nth-child(even) td { background: #fafbfc !important; }
-  .table--hover tbody tr:hover td { background: inherit !important; }
-  .input-readonly-bg { border: none !important; background: transparent !important; padding: 0 !important; font-weight: 600; }
+  .table tbody tr:nth-child(even) td { 
+    background: #f8fafc !important; 
+  }
+  
+  .table--hover tbody tr:hover td { 
+    background: inherit !important; 
+  }
+  
+  .table-bordered { 
+    border: 1px solid #cbd5e1 !important; 
+  }
+  
+  .table-bordered th,
+  .table-bordered td { 
+    border: 1px solid #cbd5e1 !important; 
+  }
+  
+  .input-readonly-bg { 
+    border: none !important; 
+    background: transparent !important; 
+    padding: 0 !important; 
+    font-weight: 600; 
+  }
   
   .badge {
-    padding: 3px 10px;
-    font-weight: 600;
-    border-radius: var(--radius-xl);
+    padding: 2px 6px !important;
+    font-weight: 600 !important;
+    border-radius: 0.25rem !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  
+  .bg-primary { background: #1e3a8a !important; color: white !important; }
+  .bg-success { background: #16a34a !important; color: white !important; }
+  .bg-warning { background: #f59e0b !important; color: #1e293b !important; }
+  .bg-danger { background: #e11d48 !important; color: white !important; }
+  .bg-info { background: #0284c7 !important; color: white !important; }
+  .bg-indigo { background: #6366f1 !important; color: white !important; }
+  .bg-light { background: #f8fafc !important; color: #0f172a !important; }
   
   .badge--risk-low { background: #d1fae5 !important; color: #065f46 !important; }
   .badge--risk-medium { background: #fef3c7 !important; color: #92400e !important; }
@@ -1165,72 +1218,196 @@ body::before {
   .badge--risk-extreme { background: #fecaca !important; color: #7f1d1d !important; font-weight: 700; }
   
   .report-header {
-    border-bottom: 2px solid var(--color-text) !important;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #0f172a !important;
+    margin-bottom: 1rem !important;
+    padding-bottom: 0.5rem !important;
   }
   
-  .report-header__layout { display: flex; gap: var(--spacing-md); align-items: start; }
-  .report-header__left { flex: 1; display: flex; align-items: flex-start; gap: var(--spacing-md); }
-  .report-header__right { text-align: right; min-width: 200px; }
-  .report-header__logo-section { width: 55px; height: 55px; }
-  .report-header__logo-section img { width: 100%; height: 100%; object-fit: contain; }
-  .report-header__company-name { font-size: 14pt; font-weight: 700; color: var(--color-text) !important; margin-bottom: 2px; }
+  .report-header__layout { 
+    display: flex !important; 
+    gap: 1rem !important; 
+    align-items: start !important; 
+  }
+  
+  .report-header__left { 
+    flex: 1 !important; 
+    display: flex !important; 
+    align-items: flex-start !important; 
+    gap: 0.75rem !important; 
+  }
+  
+  .report-header__right { 
+    text-align: right !important; 
+    min-width: 180px !important; 
+  }
+  
+  .report-header__logo-section { 
+    width: 50px !important; 
+    height: 50px !important; 
+  }
+  
+  .report-header__logo-section img { 
+    width: 100% !important; 
+    height: 100% !important; 
+    object-fit: contain !important; 
+  }
+  
+  .report-header__company-name { 
+    font-size: 13pt !important; 
+    font-weight: 700 !important; 
+    color: #0f172a !important; 
+    margin-bottom: 2px !important; 
+  }
+  
   .report-header__company-detail,
-  .report-header__company-contact { font-size: 9pt; color: var(--color-text-secondary) !important; }
-  .report-header__doc-type { font-size: 13pt; font-weight: 700; color: var(--color-primary) !important; }
-  .report-header__doc-number { font-size: 10pt; color: var(--color-text-secondary) !important; }
-  .report-header__date { font-size: 9pt; color: var(--color-text-muted) !important; }
+  .report-header__company-contact { 
+    font-size: 8pt !important; 
+    color: #475569 !important; 
+  }
+  
+  .report-header__doc-type { 
+    font-size: 12pt !important; 
+    font-weight: 700 !important; 
+    color: #1e3a8a !important; 
+  }
+  
+  .report-header__doc-number { 
+    font-size: 9pt !important; 
+    color: #475569 !important; 
+  }
+  
+  .report-header__date { 
+    font-size: 8pt !important; 
+    color: #94a3b8 !important; 
+  }
   
   .report-section-title {
-    font-size: 11pt;
-    font-weight: 700;
-    color: var(--color-primary) !important;
-    border-bottom: 1px solid var(--color-border) !important;
-    padding-bottom: var(--spacing-xs);
-    margin: 1.2rem 0 0.75rem;
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+    color: #1e3a8a !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding-bottom: 0.25rem !important;
+    margin: 0.8rem 0 0.5rem !important;
   }
   
   .report-summary-box {
-    background: var(--color-bg) !important;
-    border: 1px solid var(--color-border) !important;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   
   .report-stat-mini {
-    background: var(--color-surface) !important;
-    border: 1px solid var(--color-border) !important;
+    background: white !important;
+    border: 1px solid #cbd5e1 !important;
   }
   
-  .report-finance-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .report-finance-card--info { background: var(--color-primary-bg) !important; border-color: var(--color-primary-light) !important; color: var(--color-primary-dark) !important; }
-  .report-finance-card--warning { background: var(--color-warning-bg) !important; border-color: var(--color-warning-light) !important; color: #92400e !important; }
-  .report-finance-card--success { background: var(--color-success-bg) !important; border-color: var(--color-success-light) !important; color: #065f46 !important; }
-  .report-finance-card--danger { background: var(--color-danger-bg) !important; border-color: var(--color-danger-light) !important; color: #991b1b !important; }
+  .report-finance-card { 
+    -webkit-print-color-adjust: exact; 
+    print-color-adjust: exact; 
+  }
   
-  .progress { background: var(--color-bg) !important; }
-  .progress-bar { color: white !important; font-size: 9pt; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-finance-card--info { 
+    background: #eff6ff !important; 
+    border-color: #3b82f6 !important; 
+    color: #172554 !important; 
+  }
   
-  .signature-row { display: flex; gap: var(--spacing-md); }
-  .signature-row .col-4 { flex: 1; }
-  .signature-box { border: 1px solid var(--color-border) !important; }
-  .signature-box__label { color: var(--color-text) !important; }
-  .signature-box__date { color: var(--color-text-muted) !important; }
+  .report-finance-card--warning { 
+    background: #fffbeb !important; 
+    border-color: #fbbf24 !important; 
+    color: #92400e !important; 
+  }
   
-  .report-footer { border-top: 1px solid var(--color-border) !important; color: var(--color-text-muted) !important; }
+  .report-finance-card--success { 
+    background: #f0fdf4 !important; 
+    border-color: #4ade80 !important; 
+    color: #065f46 !important; 
+  }
   
-  .page-break { page-break-before: always; }
-  .page-break-inside-avoid { page-break-inside: avoid; }
-  h5, h4, h3, .section-title, .report-section-title { page-break-after: avoid; }
-  tr { page-break-inside: avoid; }
-  .card { page-break-inside: avoid; }
+  .report-finance-card--danger { 
+    background: #fff1f2 !important; 
+    border-color: #fb7185 !important; 
+    color: #991b1b !important; 
+  }
   
-  img { max-width: 100% !important; }
-  a[href]:after { content: none !important; }
+  .progress { 
+    background: #e2e8f0 !important; 
+  }
   
-  @page { margin: 1.5cm 2cm; size: A4; }
+  .progress-bar { 
+    color: white !important; 
+    font-size: 8pt !important; 
+    font-weight: 600; 
+    -webkit-print-color-adjust: exact; 
+    print-color-adjust: exact; 
+  }
   
+  .signature-row { 
+    display: flex !important; 
+    gap: 1rem !important; 
+  }
+  
+  .signature-row .col-4 { 
+    flex: 1 !important; 
+  }
+  
+  .signature-box { 
+    border: 1px solid #cbd5e1 !important; 
+    page-break-inside: avoid;
+  }
+  
+  .signature-box__label { 
+    color: #0f172a !important; 
+  }
+  
+  .signature-box__date { 
+    color: #94a3b8 !important; 
+  }
+  
+  .report-footer { 
+    border-top: 1px solid #cbd5e1 !important; 
+    color: #94a3b8 !important; 
+  }
+  
+  .flow-guard-banner {
+    page-break-inside: avoid;
+  }
+  
+  .page-break { 
+    page-break-before: always; 
+  }
+  
+  .page-break-inside-avoid { 
+    page-break-inside: avoid; 
+  }
+  
+  h5, h4, h3, .section-title, .report-section-title { 
+    page-break-after: avoid; 
+  }
+  
+  tr { 
+    page-break-inside: avoid; 
+  }
+  
+  .card { 
+    page-break-inside: avoid; 
+  }
+  
+  img { 
+    max-width: 100% !important; 
+  }
+  
+  a[href]:after { 
+    content: none !important; 
+  }
+  
+  @page { 
+    margin: 1.5cm 2cm; 
+    size: A4; 
+  }
+  
+  /* Pastikan warna muncul saat print */
   .card-header,
   .table th,
   .badge,
