@@ -71,21 +71,38 @@ const ReportPage = {
     this.renderReport();
   },
 
-  printReport() {
-    // Sembunyikan elemen no-print sebelum print
-    const noPrintElements = document.querySelectorAll('.no-print');
-    const originalDisplays = [];
-    noPrintElements.forEach(el => {
-      originalDisplays.push({ el, display: el.style.display });
-      el.style.display = 'none';
-    });
-    
+  async printReport() {
+    // Jika tab Jadwal aktif, pastikan Gantt sudah selesai render
+    if (this._currentReportType === 'schedule') {
+      const container = document.getElementById('ganttChartContainer');
+      const isLoading = container?.querySelector('.skeleton-loading');
+      if (isLoading) {
+        UIService.showToast('Mohon tunggu, Timeline sedang dimuat...', 'info');
+        // Polling hingga skeleton hilang atau timeout 8 detik
+        await new Promise(resolve => {
+          const start = Date.now();
+          const check = () => {
+            const stillLoading = document.getElementById('ganttChartContainer')?.querySelector('.skeleton-loading');
+            if (!stillLoading || Date.now() - start > 8000) return resolve();
+            requestAnimationFrame(check);
+          };
+          check();
+        });
+        // Beri waktu browser satu frame untuk paint final
+        await new Promise(r => requestAnimationFrame(r));
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+
+    // Tunggu semua gambar (logo) selesai load
+    const images = document.querySelectorAll('#reportOutput img, .report-header img');
+    await Promise.allSettled(
+      Array.from(images).map(img =>
+        img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
+      )
+    );
+
     window.print();
-    
-    // Kembalikan tampilan setelah print
-    originalDisplays.forEach(({ el, display }) => {
-      el.style.display = display;
-    });
   },
 
   showFlowBanner(icon, title, message, buttonLabel, buttonAction) {
@@ -206,25 +223,68 @@ const ReportPage = {
     return `<tr><td class="col-width-28 fw-semibold" style="background:#f8fafc;">${UtilityService.escapeHtml(label)}</td><td>${value||'-'}</td></tr>`;
   },
 
+  /**
+   * Membangun header laporan.
+   * Menggunakan tabel dengan <thead> agar header OTOMATIS BERULANG di setiap halaman cetak.
+   * Semua build*Report harus diawali dengan buildReportHeader() dan
+   * diakhiri dengan buildReportFooter() agar struktur tabel tertutup dengan benar.
+   */
   buildReportHeader(company, title, titleIcon='bi-file-earmark-pdf') {
-    if (!company) return `<div class="report-header"><div class="report-header__content"><div class="report-header__title"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div></div></div>`;
-    return `<div class="report-header"><div class="report-header__layout">
-      <div class="report-header__left">
-        <div class="report-header__logo-section"><img src="logo.png" alt="Logo" style="width:100%;height:100%"></div>
-        <div class="report-header__company-info">
-          <div class="report-header__company-name">${UtilityService.escapeHtml(company.name)}</div>
-          ${company.address?`<div class="report-header__company-detail"> ${UtilityService.escapeHtml(company.address)}</div>`:''}
-          <div class="report-header__company-contact">
-            ${company.contact?`<span><i class="bi bi-telephone"></i> ${UtilityService.escapeHtml(company.contact)}</span>`:''}
-            ${company.email?`<span><i class="bi bi-envelope"></i> ${UtilityService.escapeHtml(company.email)}</span>`:''}
-            ${company.website?`<span><i class="bi bi-globe"></i> ${UtilityService.escapeHtml(company.website)}</span>`:''}
+    const printDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    let headerInner;
+    if (!company) {
+      headerInner = `
+        <div class="report-header__layout">
+          <div class="report-header__left">
+            <div class="report-header__company-info">
+              <div class="report-header__doc-type"><i class="bi ${titleIcon}"></i> ${UtilityService.escapeHtml(title)}</div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="report-header__right">
-        <div class="report-header__doc-type">${UtilityService.escapeHtml(title)}</div>
-      </div>
-    </div></div>`;
+          <div class="report-header__right">
+            <div class="report-header__date">Dicetak: ${printDate}</div>
+          </div>
+        </div>`;
+    } else {
+      headerInner = `
+        <div class="report-header__layout">
+          <div class="report-header__left">
+            <div class="report-header__logo-section"><img src="logo.png" alt="Logo" style="width:100%;height:100%"></div>
+            <div class="report-header__company-info">
+              <div class="report-header__company-name">${UtilityService.escapeHtml(company.name)}</div>
+              ${company.address ? `<div class="report-header__company-detail">${UtilityService.escapeHtml(company.address)}</div>` : ''}
+              <div class="report-header__company-contact">
+                ${company.contact ? `<span><i class="bi bi-telephone"></i> ${UtilityService.escapeHtml(company.contact)}</span>` : ''}
+                ${company.email   ? `<span><i class="bi bi-envelope"></i> ${UtilityService.escapeHtml(company.email)}</span>` : ''}
+                ${company.website ? `<span><i class="bi bi-globe"></i> ${UtilityService.escapeHtml(company.website)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="report-header__right">
+            <div class="report-header__doc-type">${UtilityService.escapeHtml(title)}</div>
+            <div class="report-header__date">Dicetak: ${printDate}</div>
+          </div>
+        </div>`;
+    }
+
+    // Tabel pembungkus: <thead> berisi header → browser mengulanginya di setiap halaman cetak
+    // <tbody> dibuka di sini dan DITUTUP oleh buildReportFooter()
+    return `
+      <table class="report-page-table">
+        <thead>
+          <tr>
+            <th>
+              <div class="report-header">${headerInner}</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>`;
+  },
+
+  /** Menutup struktur tabel yang dibuka oleh buildReportHeader() */
+  buildReportFooter() {
+    return `</td></tr></tbody></table>`;
   },
 
   buildProjectInfoSection(project, includeAllFields=true) {
@@ -338,7 +398,7 @@ const ReportPage = {
       }, 50);
     }
 
-    return html;
+    return html + this.buildReportFooter();
   },
 
   // ============================================================
@@ -383,8 +443,10 @@ const ReportPage = {
     list.forEach((jsa,index)=>{
       const proj=this._data.projects.find(p=>p.id===jsa.project_id);
       if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
-      html+=`<div class="page-break-inside-avoid">`;
-      
+      html+=`<div class="report-doc-block">`;
+
+      // Header dokumen (nomor, APD) — dilindungi dari page-break
+      html+=`<div class="report-doc-block__header">`;
       html+=`<div class="report-section-title"><i></i>Detail Dokumen JSA</div>`;
       html+=`<table class="table table-bordered table-sm"><tbody>
         ${this.createReportRow('No. Dokumen JSA',`<strong>${UtilityService.escapeHtml(jsa.document_number)}</strong>`)}
@@ -395,11 +457,13 @@ const ReportPage = {
       const apdItems=[...((jsa.ppe?.selected_items)||[]),...((jsa.ppe?.custom_items)||[]).filter(Boolean)];
       html+=`<div class="report-section-title"><i></i>1. Alat Pelindung Diri (APD)</div>
       <div class="mb-3">${apdItems.length?apdItems.map(i=>`<span class="badge bg-light text-dark me-1 mb-1">${UtilityService.escapeHtml(i)}</span>`).join(''):'<span class="text-muted">Tidak ada APD yang dipilih</span>'}</div>`;
-      
+      html+=`</div>`; // tutup report-doc-block__header
+
+      // Tabel bahaya — bebas mengalir antar halaman
       const hazards=jsa.hazard_identification||[];
       html+=`<div class="report-section-title"><i></i> 2. Identifikasi Bahaya & Pengendalian Risiko</div>
-      <table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>Tahapan Pekerjaan</th><th>Potensi Bahaya</th><th>Dampak</th><th>Pengendalian Risiko</th></tr></thead><tbody>`;
-      if(hazards.length) hazards.forEach((h,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(h.step||'-')}</td><td>${UtilityService.escapeHtml(h.danger||'-')}</td><td>${UtilityService.escapeHtml(h.impact||'-')}</td><td>${UtilityService.escapeHtml(h.control||'-')}</td>`; });
+      <table class="table table-bordered table-sm table--data-flow"><thead><tr><th class="col-width-40">No</th><th>Tahapan Pekerjaan</th><th>Potensi Bahaya</th><th>Dampak</th><th>Pengendalian Risiko</th></tr></thead><tbody>`;
+      if(hazards.length) hazards.forEach((h,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(h.step||'-')}</td><td>${UtilityService.escapeHtml(h.danger||'-')}</td><td>${UtilityService.escapeHtml(h.impact||'-')}</td><td>${UtilityService.escapeHtml(h.control||'-')}</td></tr>`; });
       else html+=`<tr><td colspan="5" class="text-center text-muted">Tidak ada data identifikasi bahaya</td></tr>`;
       html+=`</tbody></table>`;
       
@@ -422,9 +486,9 @@ const ReportPage = {
       }
       
       html+=this.buildApprovalSection(jsa.prepared_by, jsa.reviewed_by, jsa.approved_by);
-      html+=`</div>`;
+      html+=`</div>`; // tutup report-doc-block
     });
-    return html;
+    return html + this.buildReportFooter();
   },
 
   // ============================================================
@@ -445,26 +509,30 @@ const ReportPage = {
     list.forEach((wm,index)=>{
       const proj=this._data.projects.find(p=>p.id===wm.project_id);
       if(index>0) html+=`<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
-      html+=`<div class="page-break-inside-avoid">`;
-      
+      html+=`<div class="report-doc-block">`;
+
+      // Header dokumen — dilindungi dari page-break
+      html+=`<div class="report-doc-block__header">`;
       html+=`<div class="report-section-title"><i></i>Detail Dokumen Metode Kerja</div>`;
       html+=`<table class="table table-bordered table-sm"><tbody>
         ${this.createReportRow('No. Dokumen',`<strong>${UtilityService.escapeHtml(wm.document_number)}</strong>`)}
         ${this.createReportRow('Revisi',UtilityService.escapeHtml(wm.revision||'0'))}
         ${this.createReportRow('Tanggal Pembuatan',UtilityService.formatDate(wm.date))}
       </tbody></table>`;
-      
+      html+=`</div>`; // tutup report-doc-block__header
+
+      // Tabel langkah kerja — bebas mengalir antar halaman
       const steps=wm.work_steps||[];
       html+=`<div class="report-section-title"><i class="bi bi-list-ol"></i> 1. Uraian Langkah Kerja</div>
-      <table class="table table-bordered table-sm"><thead><tr><th class="col-width-40">No</th><th>Tahapan Kerja</th><th>Alat Kerja</th><th>Proses / Kegiatan Pekerjaan</th></tr></thead><tbody>`;
-      if(steps.length) steps.forEach((s,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(s.work_stage||'-')}</td><td>${UtilityService.escapeHtml(s.tools||'-')}</td><td>${UtilityService.escapeHtml(s.work_process||'-')}</td>`; });
+      <table class="table table-bordered table-sm table--data-flow"><thead><tr><th class="col-width-40">No</th><th>Tahapan Kerja</th><th>Alat Kerja</th><th>Proses / Kegiatan Pekerjaan</th></tr></thead><tbody>`;
+      if(steps.length) steps.forEach((s,i)=>{ html+=`<tr><td class="text-center">${i+1}</td><td>${UtilityService.escapeHtml(s.work_stage||'-')}</td><td>${UtilityService.escapeHtml(s.tools||'-')}</td><td>${UtilityService.escapeHtml(s.work_process||'-')}</td></tr>`; });
       else html+=`<tr><td colspan="4" class="text-center text-muted">Tidak ada langkah kerja</td></tr>`;
       html+=`</tbody></table>`;
       
       html+=this.buildApprovalSection(wm.prepared_by, wm.reviewed_by, wm.approved_by);
-      html+=`</div>`;
+      html+=`</div>`; // tutup report-doc-block
     });
-    return html;
+    return html + this.buildReportFooter();
   },
 
   // ============================================================
@@ -489,11 +557,10 @@ const ReportPage = {
       <th>Nama Material</th>
       <th>Spesifikasi</th>
       <th>Toko / Supplier</th>
-      <th class="col-width-50">Qty</th>
-      <th class="col-width-50">Unit</th>
+      <th class="col-width-70 text-center">Qty / Unit</th>
       <th class="col-width-100">Harga Satuan</th>
       <th class="col-width-100">Total Harga</th>
-      <th class="col-width-90">Tanggal</th>
+      <th class="col-width-80 no-print">Tanggal</th>
     </tr></thead><tbody>`;
     
     list.forEach((po,i)=>{ 
@@ -502,18 +569,17 @@ const ReportPage = {
         <td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td>
         <td>${UtilityService.escapeHtml(po.specification||'-')}</td>
         <td>${UtilityService.escapeHtml(po.supplier||'-')}</td>
-        <td class="text-center">${po.quantity||0}</td>
-        <td class="text-center">${UtilityService.escapeHtml(po.unit||'-')}</td>
+        <td class="text-center">${po.quantity||0} ${UtilityService.escapeHtml(po.unit||'')}</td>
         <td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td>
         <td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td>
-        <td class="text-center">${UtilityService.formatDate(po.date)}</td>
+        <td class="text-center no-print">${UtilityService.formatDate(po.date)}</td>
       </tr>`; 
     });
     
     html+=`</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;">
-      <td colspan="7" class="text-end">TOTAL KESELURUHAN:</td>
+      <td colspan="6" class="text-end">TOTAL KESELURUHAN:</td>
       <td class="text-end"><strong class="text-success">${UtilityService.formatCurrency(grandTotal)}</strong></td>
-      <td></td>
+      <td class="no-print"></td>
     </tr></tfoot></table>`;
     
     html+=`<div class="report-summary-box"><div class="row">
@@ -614,7 +680,7 @@ const ReportPage = {
       }
     }
 
-    return html;
+    return html + this.buildReportFooter();
   },
 
   // ============================================================
@@ -719,7 +785,7 @@ const ReportPage = {
       html += '</div>';
     }
 
-    return html;
+    return html + this.buildReportFooter();
   }
 };
 
