@@ -1467,10 +1467,46 @@ body::before {
     text-align: center;
   }
 
-  /* Gantt landscape hint — user bisa set manual di dialog print */
+  /* ============================================================
+     Jadwal Kerja — seluruh halaman cetak landscape
+     @page named rule berlaku untuk semua halaman yang mengandung
+     elemen dengan property page: jadwal-landscape
+     ============================================================ */
+  .report-container--landscape {
+    page: jadwal-landscape;
+  }
+
+  @page jadwal-landscape {
+    size: A4 landscape;
+    margin: 10mm 10mm 12mm 10mm;
+  }
+
+  /* Gantt container — tidak perlu @page sendiri, ikut container */
+  .gantt-print-landscape {
+    /* class tetap ada untuk JS reference, page rule dihapus */
+  }
+
+  /* Override dari style.css — gantt-renderer.js sudah handle sendiri */
   .gantt-wrapper {
     overflow: visible !important;
     max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .gantt-table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .gantt-task-label {
+    position: static !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+  }
+
+  .gantt-table thead th.gantt-label-header {
+    position: static !important;
   }
 
   /* Kolom tanggal Cost Project disembunyikan saat cetak */

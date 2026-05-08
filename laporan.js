@@ -206,7 +206,8 @@ const ReportPage = {
       return;
     }
 
-    let html = '<div class="report-container">';
+    const isSchedule = this._currentReportType === 'schedule';
+    let html = `<div class="report-container${isSchedule ? ' report-container--landscape' : ''}">`;
     switch (this._currentReportType) {
       case 'jsa':      html += this.buildJSAReport(projectId, company);      break;
       case 'wm':       html += this.buildWMReport(projectId, company);       break;
@@ -365,7 +366,7 @@ const ReportPage = {
       </div>`;
     } else {
       // Tampilkan skeleton Gantt dulu, lalu render async
-      html += `<div id="ganttChartContainer">
+      html += `<div id="ganttChartContainer" class="gantt-print-landscape">
         <div class="skeleton-loading">
           <div class="text-center mb-4">
             <div class="page-loading-spinner" style="margin: 0 auto 1rem;"></div>
