@@ -1,4 +1,4 @@
-// main.js — ES6 Module v4.3 — Full Module Entry Point
+// main.js — ES6 Module v4.4 — Full Module Entry Point with Data Prefetching & Auto-Warmup
 import { ROUTES, ROUTES_NEED_COMPANY, ROUTES_NEED_PROJECT, EL, ERR, TOAST } from './constants.js';
 import { AppCache } from './cache.js';
 import { DB, DataAccess } from './db.js';
@@ -142,6 +142,21 @@ export const UtilityService = {
 };
 
 // ─────────────────────────────────────────────
+// Data prefetch mapping untuk setiap halaman
+// ─────────────────────────────────────────────
+const PAGE_DATA_MAP = Object.freeze({
+  [ROUTES.DASHBOARD]:  ['company', 'projects', 'jsa', 'work_methods', 'procurement', 'manpower'],
+  [ROUTES.PERUSAHAAN]: ['company'],
+  [ROUTES.PROYEK]:     ['projects'],
+  [ROUTES.METODE]:     ['work_methods', 'projects'],
+  [ROUTES.JSA]:        ['jsa', 'work_methods', 'projects'],
+  [ROUTES.JADWAL]:     ['jadwal', 'work_methods', 'projects'],
+  [ROUTES.MANPOWER]:   ['personnel', 'manpower', 'projects'],
+  [ROUTES.PEMBELIAN]:  ['procurement', 'projects'],
+  [ROUTES.LAPORAN]:    ['projects', 'company'],
+});
+
+// ─────────────────────────────────────────────
 // Dynamic Page Loaders
 // ─────────────────────────────────────────────
 const PAGE_LOADERS = Object.freeze({
@@ -169,10 +184,10 @@ const PREFETCH_MAP = Object.freeze({
   [ROUTES.LAPORAN]:    [ROUTES.DASHBOARD],
 });
 
-// E. WeakRef + LRU eviction untuk _loadedModules
+// WeakRef + LRU eviction untuk _loadedModules
 const _loadedModules = new Map();
-const _moduleAccessOrder = []; // LRU tracker
-const MAX_LOADED_MODULES = 8; // Max halaman yang di-cache di memori
+const _moduleAccessOrder = [];
+const MAX_LOADED_MODULES = 8;
 
 function _trackModuleAccess(route) {
   const idx = _moduleAccessOrder.indexOf(route);
@@ -262,11 +277,6 @@ export const UIService = {
     </div>`;
   },
 
-  /**
-   * FIX A: Gabungkan render() + setTimeout init() → langsung await page.init() setelah rAF.
-   * FIX B: Tambah timeout 10 detik pada import() — fallback ke error page jika gagal.
-   * FIX C: Naikkan guard cache TTL dari 30 detik → 5 menit.
-   */
   async loadPage(route) {
     const mainContent = document.getElementById('appMainContent');
     if (!mainContent) return;
@@ -285,7 +295,6 @@ export const UIService = {
       this._loadingRoute = null; return;
     }
 
-    // C. Guard cache TTL: 5 menit (300000ms)
     const GUARD_CACHE_TTL = 5 * 60 * 1000;
     const guardCacheKey = `guard_${route}`;
     const shouldRefresh = Date.now() - (this._guardCache[guardCacheKey]?.timestamp || 0) > GUARD_CACHE_TTL;
@@ -324,7 +333,6 @@ export const UIService = {
 
       let module = _loadedModules.get(route);
       if (!module || !module.deref) {
-        // B. Timeout 10 detik pada import()
         const IMPORT_TIMEOUT_MS = 10000;
         let timeoutId;
         const timeoutPromise = new Promise((_, reject) => {
@@ -335,7 +343,6 @@ export const UIService = {
           module = await Promise.race([loader(), timeoutPromise]);
           clearTimeout(timeoutId);
           
-          // E. Simpan dengan WeakRef + LRU tracking
           _evictLRUModules();
           _loadedModules.set(route, module);
           _trackModuleAccess(route);
@@ -344,7 +351,6 @@ export const UIService = {
           throw err;
         }
       } else {
-        // Module sudah ada di cache, update LRU
         _trackModuleAccess(route);
       }
 
@@ -352,7 +358,6 @@ export const UIService = {
       if (!page || typeof page.render !== 'function') throw new Error(`Module "${route}" tidak memiliki page object yang valid`);
       this._exposeToGlobal(route, page);
 
-      // A. Gabungkan render + init: render di rAF, lalu langsung await init
       await new Promise(resolve => {
         PerformanceUtils.batchDOMUpdates(() => {
           mainContent.innerHTML = page.render();
@@ -360,7 +365,6 @@ export const UIService = {
         });
       });
 
-      // Langsung await init() tanpa setTimeout
       try { await page.init(); }
       catch (err) {
         console.error(`[UIService] Error in init "${route}":`, err);
@@ -417,38 +421,68 @@ export const UIService = {
 
   _prefetchRelatedPages(route) {
     (PREFETCH_MAP[route] || []).forEach(targetRoute => {
-      if (_loadedModules.has(targetRoute)) return;
-      const loader = PAGE_LOADERS[targetRoute];
-      if (!loader) return;
-      const timer = PerformanceUtils.scheduleIdleTask(() => {
-        loader().then(module => {
-          _evictLRUModules();
-          _loadedModules.set(targetRoute, module);
-          _trackModuleAccess(targetRoute);
-          const page = this._getPageFromModule(module, targetRoute);
-          if (page) this._exposeToGlobal(targetRoute, page);
-        }).catch(() => {});
-      }, 2000);
-      this._prefetchTimers.add(timer);
+      // ===== MODULE PREFETCH (existing) =====
+      if (!_loadedModules.has(targetRoute)) {
+        const loader = PAGE_LOADERS[targetRoute];
+        if (loader) {
+          const timer = PerformanceUtils.scheduleIdleTask(() => {
+            loader().then(module => {
+              _evictLRUModules();
+              _loadedModules.set(targetRoute, module);
+              _trackModuleAccess(targetRoute);
+              const page = this._getPageFromModule(module, targetRoute);
+              if (page) this._exposeToGlobal(targetRoute, page);
+            }).catch(() => {});
+          }, 2000);
+          this._prefetchTimers.add(timer);
+        }
+      }
+      
+      // ===== 🆕 DATA PREFETCH — Prefetch data untuk halaman yang mungkin diakses =====
+      const dataSheets = PAGE_DATA_MAP[targetRoute];
+      if (dataSheets && dataSheets.length > 0) {
+        const dataTimer = PerformanceUtils.scheduleIdleTask(() => {
+          console.debug(`[UIService] 📦 Prefetching DATA for route: ${targetRoute} — sheets: [${dataSheets.join(', ')}]`);
+          import('./db.js').then(({ DB }) => {
+            DB.getAllBulk(dataSheets).catch(err => {
+              console.warn(`[UIService] ⚠️ Prefetch data failed for ${targetRoute}:`, err.message);
+            });
+          });
+        }, 3000); // Delay 3 detik setelah halaman utama selesai render
+        this._prefetchTimers.add(dataTimer);
+      }
     });
   }
 };
 
 // ─────────────────────────────────────────────
-// AppAuth  (account manager + role enforcement)
+// AppAuth (account manager + role enforcement)
 // ─────────────────────────────────────────────
 export const AppAuth = {
   _navigatePatched:     false,
   _originalNavigate:    null,
   _accountTableHandler: null,
 
-  onLoginSuccess(role) {
+  async onLoginSuccess(role) {
     const session = AuthService.getCurrentUser();
     AppNavbar.updateUserInfo(session);
     this.applyRoleToUI(role);
     const defaultRoute = ROLES[role]?.defaultRoute || 'dashboard';
     window.location.hash = '#' + defaultRoute;
     UIService.navigate(defaultRoute);
+    
+    // 🆕 Auto-warmup cache setelah login
+    setTimeout(async () => {
+      try {
+        console.log('[AppAuth] 🔥 Starting cache warmup after login...');
+        const prioritySheets = AppCache.getPrioritySheets();
+        console.log('[AppAuth] Warming up priority sheets:', prioritySheets);
+        await AppCache.warmupBulk(prioritySheets);
+        console.log('[AppAuth] ✅ Cache warmup complete');
+      } catch (err) {
+        console.warn('[AppAuth] ⚠️ Cache warmup failed:', err.message);
+      }
+    }, 300); // Delay 300ms setelah navigasi
   },
 
   applyRoleToUI(role) {

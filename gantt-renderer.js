@@ -196,7 +196,7 @@ export const GanttRenderer = {
         font-weight: 600;
         color: #475569;
         text-align: center;
-        font-size: 0.68rem;
+        font-size: 0.75rem;
         position: sticky;
         top: 0;
         z-index: 4;
@@ -214,7 +214,7 @@ export const GanttRenderer = {
         border-right: 1px solid #e2e8f0;
       }
       .gantt-table thead th.gantt-month-header {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         font-weight: 600;
         color: #334155;
         border-right: 1px solid #e2e8f0;
@@ -248,10 +248,10 @@ export const GanttRenderer = {
       .gantt-task-label__name {
         font-weight: 600;
         color: #1e293b;
-        font-size: 0.78rem;
+        font-size: 0.75rem;
       }
       .gantt-task-label__date {
-        font-size: 0.65rem;
+        font-size: 0.75rem;
         color: #64748b;
         font-weight: 500;
         margin-top: 1px;
@@ -268,7 +268,7 @@ export const GanttRenderer = {
       .gantt-bar {
         position: absolute; top: 12px; height: 22px; border-radius: 11px;
         cursor: pointer; z-index: 2; display: flex; align-items: center;
-        padding: 0 10px; font-size: 0.6rem; font-weight: 600; color: white;
+        padding: 0 10px; font-size: 0.7rem; font-weight: 600; color: white;
         white-space: nowrap; text-shadow: 0 1px 1px rgba(0,0,0,0.15);
         box-shadow: 0 1px 2px rgba(0,0,0,0.1); min-width: 24px;
         overflow: hidden; text-overflow: ellipsis; transition: all 0.15s ease;

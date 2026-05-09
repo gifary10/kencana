@@ -1,4 +1,4 @@
-// db.js — ES6 Module v2.1 with Batch Chunking & Timeout Fix
+// db.js — ES6 Module v2.2 with Bulk Operations & Optimized Cache
 import { GS_API_URL, GS_API_TOKEN } from './config.js';
 import { AppCache } from './cache.js';
 
@@ -10,7 +10,7 @@ const BATCH_TIMEOUT    = 60000;
 const MAX_BATCH_SIZE   = 50;
 
 let _activeRequests = 0;
-const MAX_CONCURRENT   = 3;
+const MAX_CONCURRENT   = 6; // ⬆️ dari 3 → 6 untuk HTTP/2
 
 async function _fetchWithRetry(url, options = {}, retries = 3, delay = 1000, timeoutMs = DEFAULT_TIMEOUT) {
   let lastError;
@@ -96,6 +96,76 @@ function _scheduleIdleOrTimeout(cb, timeout = 1000) {
 }
 
 export const DB = {
+  // 🆕 Bulk getAll — 1 request untuk multiple sheets
+  async getAllBulk(sheets) {
+    if (!sheets || sheets.length === 0) return {};
+    
+    const key = 'bulk::' + sheets.join(',');
+    
+    // Cek cache bulk
+    if (AppCache.isValid(key, 'default', false)) {
+      return AppCache.get(key);
+    }
+    
+    // Cek apakah semua sheet sudah ada di cache individual
+    const allCached = sheets.every(sheet => {
+      const sheetKey = AppCache.buildKey(sheet);
+      return AppCache.isValid(sheetKey, sheet, false);
+    });
+    
+    if (allCached) {
+      const result = {};
+      sheets.forEach(sheet => {
+        const cached = AppCache.get(AppCache.buildKey(sheet));
+        result[sheet] = cached;
+      });
+      AppCache.set(key, result, 'default');
+      return result;
+    }
+    
+    _showLoading();
+    try {
+      const params = { action: 'getBulk', sheets: sheets.join(',') };
+      if (GS_TOKEN) params.token = GS_TOKEN;
+      
+      const sp = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => sp.append(k, v));
+      
+      const res = await _fetchWithRetry(GS_URL + '?' + sp.toString());
+      const json = await res.json();
+      
+      if (!json.ok) throw new Error(json.error || 'API error');
+      
+      // Simpan masing-masing sheet ke cache
+      Object.entries(json).forEach(([sheet, data]) => {
+        if (data && data.rows !== undefined) {
+          AppCache.set(AppCache.buildKey(sheet), data, sheet, {
+            total: data.total,
+            isPriority: AppCache.isPrioritySheet(sheet)
+          });
+        }
+      });
+      
+      AppCache.set(key, json, 'default');
+      return json;
+    } catch (err) {
+      console.warn('[DB] getAllBulk failed, falling back to individual requests:', err.message);
+      // Fallback: fetch satu per satu
+      const results = {};
+      await Promise.allSettled(sheets.map(async (sheet) => {
+        try {
+          results[sheet] = await this.getAll(sheet);
+        } catch (e) {
+          results[sheet] = { rows: [], total: 0 };
+        }
+      }));
+      AppCache.set(key, results, 'default');
+      return results;
+    } finally {
+      _hideLoading();
+    }
+  },
+
   async getAll(sheet, opts = {}) {
     const key       = AppCache.buildKey(sheet, opts);
     const isPriority = AppCache.isPrioritySheet(sheet);
@@ -218,6 +288,7 @@ export const DB = {
     } finally { _hideLoading(); }
   },
 
+  // 🔧 Optimasi: invalidasi lebih presisi
   async upsert(sheet, data) {
     const key      = AppCache.buildKey(sheet);
     const cached   = AppCache.get(key);
@@ -226,15 +297,22 @@ export const DB = {
     _showLoading();
     try {
       const r = await _post({ action: 'upsert', sheet, data });
-      const opts = {};
-      if (data.project_id) opts.projectId = data.project_id;
-      if (data.id)         opts.entityId  = data.id;
-      AppCache.invalidateRelated(sheet, opts);
+      
+      // 🔧 Invalidasi lebih presisi
+      AppCache.invalidateSheetOnly(sheet);
+      if (data.project_id) {
+        AppCache.invalidateByProject(sheet, data.project_id);
+      }
+      // Hanya invalidate related jika sheet terkait project (yang ada project_id)
+      if (['jsa', 'work_methods', 'manpower', 'procurement', 'jadwal'].includes(sheet) && data.project_id) {
+        AppCache.invalidateByDependency(`projects:${data.project_id}`);
+      }
+      
       if (isPriority) _scheduleIdleOrTimeout(() => AppCache.refreshStale(sheet), 500);
       return r.row;
     } catch (error) {
       if (oldCache) AppCache.set(key, oldCache, sheet);
-      else AppCache.invalidate(sheet);
+      else AppCache.invalidateSheetOnly(sheet);
       throw error;
     } finally { _hideLoading(); }
   },
@@ -252,14 +330,15 @@ export const DB = {
         if (existing?.project_id) projectId = existing.project_id;
       } catch {}
       const r = await _post({ action: 'delete', sheet, id });
-      const opts = {};
-      if (projectId) opts.projectId = projectId;
-      AppCache.invalidateRelated(sheet, opts);
+      AppCache.invalidateSheetOnly(sheet);
+      if (projectId) {
+        AppCache.invalidateByProject(sheet, projectId);
+      }
       if (isPriority) _scheduleIdleOrTimeout(() => AppCache.refreshStale(sheet), 500);
       return r.deleted;
     } catch (error) {
       if (oldCache) AppCache.set(key, oldCache, sheet);
-      else AppCache.invalidate(sheet);
+      else AppCache.invalidateSheetOnly(sheet);
       throw error;
     } finally { _hideLoading(); }
   },
@@ -269,8 +348,10 @@ export const DB = {
     _showLoading();
     try {
       const r = await _post({ action: 'deleteWhere', sheet, field, value });
-      const opts = (field === 'project_id' && value) ? { projectId: value } : {};
-      AppCache.invalidateRelated(sheet, opts);
+      AppCache.invalidateSheetOnly(sheet);
+      if (field === 'project_id' && value) {
+        AppCache.invalidateByProject(sheet, value);
+      }
       if (isPriority) _scheduleIdleOrTimeout(() => AppCache.refreshStale(sheet), 500);
       return r.deleted;
     } finally { _hideLoading(); }
@@ -309,9 +390,16 @@ export const DB = {
         const r = await _post({ action: 'batchUpsert', operations }, BATCH_TIMEOUT);
         allResults = r.rows || [];
       }
+      
+      // 🔧 Invalidasi presisi
       Object.entries(affected).forEach(([sheet, projectIds]) => {
-        if (projectIds.size > 0) projectIds.forEach(pid => AppCache.invalidateRelated(sheet, { projectId: pid }));
-        else AppCache.invalidateRelated(sheet);
+        AppCache.invalidateSheetOnly(sheet);
+        projectIds.forEach(pid => {
+          AppCache.invalidateByProject(sheet, pid);
+          if (['jsa', 'work_methods', 'manpower', 'procurement', 'jadwal'].includes(sheet)) {
+            AppCache.invalidateByDependency(`projects:${pid}`);
+          }
+        });
         if (AppCache.isPrioritySheet(sheet)) _scheduleIdleOrTimeout(() => AppCache.refreshStale(sheet), 500);
       });
       return allResults;
@@ -329,8 +417,10 @@ export const DB = {
     try {
       const r = await _post({ action: 'batchDelete', operations }, BATCH_TIMEOUT);
       Object.entries(affected).forEach(([sheet, projectIds]) => {
-        if (projectIds.size > 0) projectIds.forEach(pid => AppCache.invalidateRelated(sheet, { projectId: pid }));
-        else AppCache.invalidateRelated(sheet);
+        AppCache.invalidateSheetOnly(sheet);
+        projectIds.forEach(pid => {
+          AppCache.invalidateByProject(sheet, pid);
+        });
         if (AppCache.isPrioritySheet(sheet)) _scheduleIdleOrTimeout(() => AppCache.refreshStale(sheet), 500);
       });
       return r.deleted;
@@ -351,23 +441,16 @@ export const DB = {
 };
 
 // ─────────────────────────────────────────────
-// StorageService
+// 🆕 StorageService — Simplified (no redundant cache)
 // ─────────────────────────────────────────────
-const _storageCache = new Map();
-
 export const StorageService = {
   async getData(sheet) {
-    const cacheKey = `storage_${sheet}`;
-    const cached   = _storageCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < 5000) return cached.data;
+    // 🔧 Langsung gunakan AppCache tanpa cache terpisah
     try {
       const result = await DB.getAll(sheet);
-      const data = result.rows || [];
-      _storageCache.set(cacheKey, { data, timestamp: Date.now() });
-      return data;
+      return result.rows || [];
     } catch (err) {
       console.error('[StorageService] getData error:', sheet, err);
-      // UIService imported lazily to avoid circular dependency
       return [];
     }
   },
@@ -375,13 +458,11 @@ export const StorageService = {
   async saveData(sheet, dataArray) {
     try {
       await DB.batchUpsert(dataArray.map(data => ({ sheet, data })));
-      _storageCache.delete(`storage_${sheet}`);
       return true;
     } catch (err) {
       console.error('[StorageService] saveData error:', sheet, err);
       try {
         for (const row of dataArray) await DB.upsert(sheet, row);
-        _storageCache.delete(`storage_${sheet}`);
         return true;
       } catch (err2) {
         console.error('[StorageService] saveData fallback error:', sheet, err2);
@@ -390,8 +471,14 @@ export const StorageService = {
     }
   },
 
-  invalidateCache(sheet) { _storageCache.delete(`storage_${sheet}`); },
-  addAuditLog(actionType, description) { console.info('[Audit]', actionType, description); }
+  invalidateCache(sheet) {
+    // 🔧 Delegasikan ke AppCache
+    AppCache.invalidateSheetOnly(sheet);
+  },
+
+  addAuditLog(actionType, description) {
+    console.info('[Audit]', actionType, description);
+  }
 };
 
 // ─────────────────────────────────────────────
@@ -399,7 +486,6 @@ export const StorageService = {
 // ─────────────────────────────────────────────
 export const DataAccess = {
   getCurrentUser() {
-    // AuthService resolved at runtime via window to avoid circular deps
     const session = window.AuthService?.getCurrentUser?.();
     return (session && session.name) ? session.name : 'Admin KPT';
   },
@@ -445,14 +531,14 @@ export const DataAccess = {
       return { sheet: 'jadwal', data: { id: row.id, project_id: row.project_id, work_method_id: row.work_method_id, document_number: row.document_number, step_number: row.step_number, work_stage: row.work_stage || '', work_process: row.work_process || '', start_date: row.start_date || '', end_date: row.end_date || '', updated_at: now } };
     });
     const result = await DB.batchUpsert(operations);
-    affectedProjects.forEach(pid => AppCache.invalidateRelated('jadwal', { projectId: pid }));
+    affectedProjects.forEach(pid => AppCache.invalidateSheetOnly('jadwal'));
     return result;
   },
-  async deleteScheduleByProject(pid) { if (!pid) return false; await DB.deleteWhere('jadwal', 'project_id', pid); AppCache.invalidateRelated('jadwal', { projectId: pid }); return true; },
+  async deleteScheduleByProject(pid) { if (!pid) return false; await DB.deleteWhere('jadwal', 'project_id', pid); AppCache.invalidateSheetOnly('jadwal'); return true; },
 
   async getAllPersonnel()         { return StorageService.getData('personnel'); },
   async savePersonnel(data)      { if (!data || !data.id) return null; data.updated_at = new Date().toISOString(); await DB.upsert('personnel', data); StorageService.invalidateCache('personnel'); StorageService.addAuditLog('SAVE_PERSONNEL', `Personel ${data.name} disimpan`); return data; },
-  async deletePersonnel(id)      { if (!id) return false; await DB.batchDelete([{ sheet:'manpower', field:'personnel_id', value: id }]); AppCache.invalidate('manpower'); await DB.delete('personnel', id); AppCache.invalidate('personnel'); StorageService.invalidateCache('personnel'); StorageService.addAuditLog('DELETE_PERSONNEL', `Personel ${id} dihapus`); return true; },
+  async deletePersonnel(id)      { if (!id) return false; await DB.batchDelete([{ sheet:'manpower', field:'personnel_id', value: id }]); AppCache.invalidateSheetOnly('manpower'); await DB.delete('personnel', id); AppCache.invalidateSheetOnly('personnel'); StorageService.invalidateCache('personnel'); StorageService.addAuditLog('DELETE_PERSONNEL', `Personel ${id} dihapus`); return true; },
 
   async getAllManpower()          { return StorageService.getData('manpower'); },
   async getManpowerByProject(pid){ if (!pid) return []; const r = await DB.getAll('manpower', { filterField:'project_id', filterValue: pid }); return r.rows || []; },
@@ -467,10 +553,10 @@ export const DataAccess = {
     await DB.deleteWhere('manpower', 'project_id', project_id);
     const operations = (personnel_ids || []).map(pid => ({ sheet: 'manpower', data: { id: 'mp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5), project_id, personnel_id: pid, updated_at: new Date().toISOString() } }));
     if (operations.length > 0) await DB.batchUpsert(operations);
-    AppCache.invalidateRelated('manpower', { projectId: project_id });
+    AppCache.invalidateSheetOnly('manpower');
     return personnel_ids;
   },
-  async deleteManpowerByProject(pid) { if (!pid) return false; await DB.deleteWhere('manpower', 'project_id', pid); AppCache.invalidateRelated('manpower', { projectId: pid }); return true; },
+  async deleteManpowerByProject(pid) { if (!pid) return false; await DB.deleteWhere('manpower', 'project_id', pid); AppCache.invalidateSheetOnly('manpower'); return true; },
 
   async getAllPO()                { return StorageService.getData('procurement'); },
   async getPOById(id)            { return id ? DB.getById('procurement', id) : null; },
@@ -481,7 +567,7 @@ export const DataAccess = {
     const affectedProjects = new Set();
     const operations = poArray.map(po => { if (po.project_id) affectedProjects.add(po.project_id); return { sheet:'procurement', data: { ...po, updated_at: new Date().toISOString(), created_at: po.created_at || new Date().toISOString() } }; });
     const results = await DB.batchUpsert(operations);
-    affectedProjects.forEach(pid => AppCache.invalidateRelated('procurement', { projectId: pid }));
+    affectedProjects.forEach(pid => AppCache.invalidateSheetOnly('procurement'));
     return results;
   },
   async deletePO(id)             { if (!id) return false; await DB.delete('procurement', id); StorageService.invalidateCache('procurement'); return true; },

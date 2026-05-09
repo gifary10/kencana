@@ -1,51 +1,51 @@
-// cache.js — ES6 Module v2.0 with Memory Management & Performance Optimization
+// cache.js — ES6 Module v2.1 with Extended TTL & Memory Management
 
 const _cache            = new Map();
 const _cacheTimestamps  = new Map();
 const _cacheMeta        = new Map();
 const _pending          = new Map();
 
-const MAX_CACHE_SIZE = 100;
-const MAX_CACHE_AGE  = 30 * 60 * 1000; // 30 menit
+const MAX_CACHE_SIZE = 500;  // ⬆️ dari 100 → 500
+const MAX_CACHE_AGE  = 2 * 60 * 60 * 1000; // ⬆️ dari 30 menit → 2 jam
 
 const PRIORITY_SHEETS = Object.freeze({
-  company:      { ttl: 60 * 60 * 1000, preload: true,  staleWhileRevalidate: true },
-  accounts:     { ttl: 60 * 60 * 1000, preload: true,  staleWhileRevalidate: true },
-  projects:     { ttl: 30 * 60 * 1000, preload: true,  staleWhileRevalidate: true },
-  work_methods: { ttl: 10 * 60 * 1000, preload: false, staleWhileRevalidate: true },
-  jsa:          { ttl: 10 * 60 * 1000, preload: false, staleWhileRevalidate: true },
-  jadwal:       { ttl: 10 * 60 * 1000, preload: false, staleWhileRevalidate: true },
-  manpower:     { ttl:  5 * 60 * 1000, preload: false, staleWhileRevalidate: true },
-  personnel:    { ttl:  5 * 60 * 1000, preload: false, staleWhileRevalidate: true },
-  procurement:  { ttl:  2 * 60 * 1000, preload: false, staleWhileRevalidate: true },
+  company:      { ttl: 4 * 60 * 60 * 1000, preload: true,  staleWhileRevalidate: true },  // 4 jam
+  accounts:     { ttl: 4 * 60 * 60 * 1000, preload: true,  staleWhileRevalidate: true },  // 4 jam
+  projects:     { ttl: 2 * 60 * 60 * 1000, preload: true,  staleWhileRevalidate: true },  // 2 jam
+  work_methods: { ttl: 30 * 60 * 1000, preload: true,  staleWhileRevalidate: true },      // 30 menit
+  jsa:          { ttl: 30 * 60 * 1000, preload: false, staleWhileRevalidate: true },      // 30 menit
+  jadwal:       { ttl: 15 * 60 * 1000, preload: false, staleWhileRevalidate: true },      // 15 menit
+  manpower:     { ttl: 15 * 60 * 1000, preload: false, staleWhileRevalidate: true },      // 15 menit
+  personnel:    { ttl: 30 * 60 * 1000, preload: false, staleWhileRevalidate: true },      // 30 menit
+  procurement:  { ttl: 10 * 60 * 1000, preload: false, staleWhileRevalidate: true },      // 10 menit
 });
 
 const CACHE_TTL = Object.freeze({
-  company:        60 * 60 * 1000,
-  accounts:       60 * 60 * 1000,
-  projects:       30 * 60 * 1000,
-  work_methods:   10 * 60 * 1000,
-  jsa:            10 * 60 * 1000,
-  jadwal:         10 * 60 * 1000,
-  manpower:        5 * 60 * 1000,
-  personnel:       5 * 60 * 1000,
-  procurement:     2 * 60 * 1000,
-  dashboard_stats:10 * 60 * 1000,
-  laporan:         5 * 60 * 1000,
-  default:         2 * 60 * 1000,
+  company:        4 * 60 * 60 * 1000,  // 4 jam (jarang berubah)
+  accounts:       4 * 60 * 60 * 1000,  // 4 jam
+  projects:       2 * 60 * 60 * 1000,  // 2 jam
+  work_methods:   30 * 60 * 1000,      // 30 menit
+  jsa:            30 * 60 * 1000,      // 30 menit
+  jadwal:         15 * 60 * 1000,      // 15 menit
+  manpower:       15 * 60 * 1000,      // 15 menit
+  personnel:      30 * 60 * 1000,      // 30 menit
+  procurement:    10 * 60 * 1000,      // 10 menit
+  dashboard_stats:15 * 60 * 1000,      // 15 menit
+  laporan:        10 * 60 * 1000,      // 10 menit
+  default:        5 * 60 * 1000,       // 5 menit (dari 2 menit)
 });
 
 const STALE_WINDOW = Object.freeze({
-  company:       4 * 60 * 60 * 1000,
-  accounts:      4 * 60 * 60 * 1000,
-  projects:      2 * 60 * 60 * 1000,
-  work_methods: 45 * 60 * 1000,
-  jsa:          45 * 60 * 1000,
-  jadwal:       45 * 60 * 1000,
-  manpower:     20 * 60 * 1000,
-  personnel:    20 * 60 * 1000,
-  procurement:  10 * 60 * 1000,
-  laporan:      20 * 60 * 1000,
+  company:       8 * 60 * 60 * 1000,   // 8 jam
+  accounts:      8 * 60 * 60 * 1000,   // 8 jam
+  projects:      4 * 60 * 60 * 1000,   // 4 jam
+  work_methods: 2 * 60 * 60 * 1000,    // 2 jam
+  jsa:          2 * 60 * 60 * 1000,    // 2 jam
+  jadwal:       1 * 60 * 60 * 1000,    // 1 jam
+  manpower:     1 * 60 * 60 * 1000,    // 1 jam
+  personnel:    2 * 60 * 60 * 1000,    // 2 jam
+  procurement:  30 * 60 * 1000,        // 30 menit
+  laporan:      1 * 60 * 60 * 1000,    // 1 jam
 });
 
 const BG_REFRESH_THRESHOLD = Object.freeze({
@@ -80,14 +80,41 @@ const REVERSE_DEPENDENCY_MAP = (() => {
 })();
 
 let _cleanupTimer = null;
+let _memoryPressureTimer = null;
 
 export const AppCache = {
   _startPeriodicCleanup() {
     if (_cleanupTimer) return;
-    _cleanupTimer = setInterval(() => this._evictExpiredEntries(), 5 * 60 * 1000);
+    _cleanupTimer = setInterval(() => this._evictExpiredEntries(), 10 * 60 * 1000); // 10 menit
     window.addEventListener('beforeunload', () => {
       if (_cleanupTimer) { clearInterval(_cleanupTimer); _cleanupTimer = null; }
+      if (_memoryPressureTimer) { clearInterval(_memoryPressureTimer); _memoryPressureTimer = null; }
     });
+    
+    // 🆕 Memory pressure handler
+    this._startMemoryPressureHandler();
+  },
+
+  // 🆕 Memory Pressure Handler
+  _startMemoryPressureHandler() {
+    if (_memoryPressureTimer) return;
+    _memoryPressureTimer = setInterval(() => {
+      if ('memory' in performance && performance.memory) {
+        const { usedJSHeapSize, jsHeapSizeLimit } = performance.memory;
+        if (usedJSHeapSize > jsHeapSizeLimit * 0.75) {
+          console.warn('[AppCache] Memory pressure detected, clearing 30% oldest entries');
+          const entries = [..._cacheTimestamps.entries()]
+            .sort((a, b) => a[1] - b[1])
+            .slice(0, Math.floor(_cache.size * 0.3));
+          entries.forEach(([key]) => {
+            _cache.delete(key);
+            _cacheTimestamps.delete(key);
+            _cacheMeta.delete(key);
+            _pending.delete(key);
+          });
+        }
+      }
+    }, 30000); // Check setiap 30 detik
   },
 
   _evictExpiredEntries() {
@@ -106,9 +133,11 @@ export const AppCache = {
   _enforceMaxSize() {
     if (_cache.size <= MAX_CACHE_SIZE) return;
     const entries = [..._cacheTimestamps.entries()].sort((a, b) => a[1] - b[1]);
-    entries.slice(0, _cache.size - MAX_CACHE_SIZE).forEach(([key]) => {
+    const evictCount = _cache.size - MAX_CACHE_SIZE;
+    entries.slice(0, evictCount).forEach(([key]) => {
       _cache.delete(key); _cacheTimestamps.delete(key); _cacheMeta.delete(key);
     });
+    console.debug(`[AppCache] Evicted ${evictCount} LRU entries (size limit)`);
   },
 
   getPrioritySheets()    { return Object.keys(PRIORITY_SHEETS).filter(s => PRIORITY_SHEETS[s].preload); },
@@ -230,6 +259,21 @@ export const AppCache = {
     });
   },
 
+  // 🆕 Invalidate hanya sheet spesifik (tanpa related)
+  invalidateSheetOnly(sheet) {
+    let count = 0;
+    const toDelete = [];
+    _cache.forEach((_, key) => { if (key === sheet || key.startsWith(sheet + '::')) toDelete.push(key); });
+    toDelete.forEach(key => { _cache.delete(key); _cacheTimestamps.delete(key); _cacheMeta.delete(key); count++; });
+    return count;
+  },
+
+  // 🆕 Invalidate hanya untuk project spesifik
+  invalidateByProject(sheet, projectId) {
+    if (!projectId) return this.invalidateSheetOnly(sheet);
+    return this.invalidateByDependency(`projects:${projectId}`);
+  },
+
   clear() {
     _cache.clear(); _cacheTimestamps.clear(); _cacheMeta.clear(); _pending.clear();
   },
@@ -254,25 +298,39 @@ export const AppCache = {
 
   async warmup(sheets = null) {
     const sheetsToWarm = sheets || this.getPrioritySheets();
+    console.log(`[AppCache] Warming up ${sheetsToWarm.length} sheets:`, sheetsToWarm);
     await Promise.allSettled(sheetsToWarm.map(async (sheet) => {
       try {
         if (!this.isValid(sheet, sheet, true)) {
-          if (sheet === 'company') {
-            const all = await DB.getAll(sheet);
-            const row = all.rows?.[0] || null;
-            if (row) this.set(sheet, row, sheet);
-          } else {
-            await DB.getAll(sheet);
-          }
+          // Gunakan DB.getAll untuk memastikan data masuk ke cache
+          const { DB } = await import('./db.js');
+          await DB.getAll(sheet);
         }
-      } catch (err) { console.warn(`[AppCache] Warmup failed for ${sheet}:`, err.message); }
+      } catch (err) { 
+        console.warn(`[AppCache] Warmup failed for ${sheet}:`, err.message); 
+      }
     }));
+    console.log('[AppCache] Warmup complete. Cache stats:', this.getStats());
+  },
+
+  // 🆕 Bulk warmup dengan single request
+  async warmupBulk(sheets) {
+    if (!sheets || sheets.length === 0) return;
+    console.log(`[AppCache] Bulk warming up ${sheets.length} sheets:`, sheets);
+    try {
+      const { DB } = await import('./db.js');
+      await DB.getAllBulk(sheets);
+    } catch (err) {
+      console.warn('[AppCache] Bulk warmup failed, falling back to individual:', err.message);
+      await this.warmup(sheets);
+    }
   },
 
   async refreshStale(sheet) {
     if (!this.hasStaleSupport(sheet)) return;
     if (this.isStale(sheet, sheet) && this.isStaleWindowValid(sheet, sheet)) {
       try {
+        const { DB } = await import('./db.js');
         const result = await DB.getAll(sheet);
         this.set(sheet, result, sheet);
       } catch (err) { console.warn(`[AppCache] BG refresh failed for ${sheet}:`, err.message); }

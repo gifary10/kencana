@@ -1,4 +1,4 @@
-// login.js — ES6 Module v2.0
+// login.js — ES6 Module v2.1 with Auto-Warmup after Login
 import { EL, ROLE_KEYS, ROUTES } from './constants.js';
 import { GS_API_URL } from './config.js';
 
@@ -115,7 +115,7 @@ export const LoginPage = {
           <label for="loginPassword"><i class="bi bi-lock" aria-hidden="true"></i> Password</label>
           <input type="password" id="loginPassword" placeholder="Masukkan password" autocomplete="current-password" aria-required="true">
         </div>
-        <button class="login-btn" id="loginBtn" id="loginBtn" aria-label="Masuk ke aplikasi">
+        <button class="login-btn" id="loginBtn" aria-label="Masuk ke aplikasi">
           <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Masuk
         </button>
         <div class="login-error" id="loginError" style="display:none;" role="alert">
@@ -153,6 +153,19 @@ export const LoginPage = {
       errorBox.style.display = 'none';
       this.hide();
       window.AppAuth.onLoginSuccess(json.session.role);
+      
+      // 🆕 Trigger cache warmup di background setelah login sukses
+      setTimeout(async () => {
+        try {
+          console.log('[LoginPage] 🔥 Starting background cache warmup...');
+          const { AppCache } = await import('./cache.js');
+          const prioritySheets = AppCache.getPrioritySheets();
+          await AppCache.warmupBulk(prioritySheets);
+          console.log('[LoginPage] ✅ Background cache warmup complete');
+        } catch (err) {
+          console.warn('[LoginPage] ⚠️ Background cache warmup failed:', err.message);
+        }
+      }, 500);
     } catch {
       errorMsg.textContent = 'Gagal terhubung ke server. Periksa koneksi internet Anda.';
       errorBox.style.display = 'flex';
