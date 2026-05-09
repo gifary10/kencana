@@ -1,6 +1,7 @@
-// gantt-renderer.js — Modul terpisah untuk rendering Gantt Chart
-// Module ini HANYA di-load saat user membuka laporan jadwal
-// Dipisahkan karena ukurannya besar (~15KB+ kode CSS & rendering)
+// gantt-renderer.js — ES6 Module — Gantt Chart Renderer v2.0
+// Lazy-loaded saat user membuka laporan jadwal
+// D. Fix: Import langsung dari db.js untuk formatCurrency, bukan window.UtilityService fallback
+import { UtilityService } from './main.js';
 
 export const GanttRenderer = {
   /**
@@ -53,15 +54,15 @@ export const GanttRenderer = {
       });
     }
 
-    // Lebar label kolom kiri — fixed 28% dari lebar cetak A4
-    // Tidak bergantung panjang karakter, biarkan CSS wrap teks
+    // Lebar label kolom kiri
     const labelWidth = 220;
 
     return this._buildHTML(scheduleItems, days, months, totalDays, chartStartDate, today, labelWidth);
   },
 
   _buildHTML(scheduleItems, days, months, totalDays, chartStartDate, today, labelWidth) {
-    const E = (window.UtilityService?.escapeHtml || ((s) => s));
+    // D. Gunakan UtilityService langsung dari import, bukan window.UtilityService
+    const E = UtilityService.escapeHtml.bind(UtilityService);
     
     let html = this._getStyles(labelWidth);
     
@@ -309,7 +310,6 @@ export const GanttRenderer = {
       }
       
       @media print {
-        /* Wrapper: no scroll, full width, no shadow */
         .gantt-wrapper {
           overflow: visible !important;
           border: 1px solid #cbd5e1 !important;
@@ -321,7 +321,6 @@ export const GanttRenderer = {
           print-color-adjust: exact;
         }
 
-        /* Tabel: full width, ukuran font kecil agar muat A4 */
         .gantt-table {
           width: 100% !important;
           table-layout: fixed !important;
@@ -330,7 +329,6 @@ export const GanttRenderer = {
           border-collapse: collapse !important;
         }
 
-        /* Header bulan */
         .gantt-table thead th {
           padding: 4px 2px !important;
           font-size: 6pt !important;
@@ -340,7 +338,6 @@ export const GanttRenderer = {
           print-color-adjust: exact;
         }
 
-        /* Kolom label kiri — lebar 22% (landscape A4 lebih lebar, bar dapat ruang lebih) */
         .gantt-table thead th.gantt-label-header {
           width: 22% !important;
           min-width: 22% !important;
@@ -350,7 +347,6 @@ export const GanttRenderer = {
           position: static !important;
         }
 
-        /* Cell label setiap baris */
         .gantt-task-label {
           width: 22% !important;
           min-width: 22% !important;
@@ -377,14 +373,12 @@ export const GanttRenderer = {
           line-height: 1.3 !important;
         }
 
-        /* Baris tabel */
         .gantt-table tbody td {
           height: auto !important;
           min-height: 28px !important;
           padding: 2px 0 !important;
         }
 
-        /* Bar chart */
         .gantt-bar {
           font-size: 5pt !important;
           height: 14px !important;
@@ -396,13 +390,11 @@ export const GanttRenderer = {
           print-color-adjust: exact;
         }
 
-        /* Warna bar */
-        .gantt-bar--done    { background: #10b981 !important; border-color: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .gantt-bar--active  { background: #f59e0b !important; border-color: #d97706 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .gantt-bar--upcoming{ background: #3b82f6 !important; border-color: #2563eb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .gantt-bar--no-date { background: #f1f5f9 !important; color: #64748b !important;         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .gantt-bar--done    { background: #10b981 !important; border-color: #059669 !important; }
+        .gantt-bar--active  { background: #f59e0b !important; border-color: #d97706 !important; }
+        .gantt-bar--upcoming{ background: #3b82f6 !important; border-color: #2563eb !important; }
+        .gantt-bar--no-date { background: #f1f5f9 !important; color: #64748b !important; }
 
-        /* Garis weekend & today */
         .gantt-weekend-line-saturday,
         .gantt-weekend-line-sunday,
         .gantt-today-line {
@@ -410,11 +402,9 @@ export const GanttRenderer = {
           print-color-adjust: exact;
         }
 
-        /* Sembunyikan hover state */
         .gantt-table tbody tr:hover td { background: inherit !important; }
         .gantt-table tbody tr:hover .gantt-task-label { background: inherit !important; }
 
-        /* Legend sudah no-print, pastikan tersembunyi */
         .gantt-legend { display: none !important; }
       }
     </style>`;

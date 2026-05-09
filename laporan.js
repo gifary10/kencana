@@ -1,4 +1,8 @@
 // laporan.js — Report Page (async Google Sheets) - UPDATED with Lazy Loading Gantt Chart
+import { StorageService, DataAccess } from './db.js';
+import { AppError } from './error-handler.js';
+import { UtilityService, UIService } from './main.js';
+
 const ReportPage = {
   _currentReportType: 'jsa',
   _loadedTabs: new Set(),
@@ -353,7 +357,7 @@ const ReportPage = {
       html += this.buildProjectInfoSection(project, false);
     }
 
-    html += `<div class="report-section-title"><i class="bi bi-bar-chart-steps"></i> Timeline Pekerjaan</div>`;
+    html += `<div class="report-section-title"><i></i>Timeline Schedule</div>`;
 
     if (scheduleData.length === 0) {
       html += `<div class="flow-guard-banner">
@@ -457,7 +461,7 @@ const ReportPage = {
       
       const apdItems=[...((jsa.ppe?.selected_items)||[]),...((jsa.ppe?.custom_items)||[]).filter(Boolean)];
       html+=`<div class="report-section-title"><i></i>1. Alat Pelindung Diri (APD)</div>
-      <div class="mb-3">${apdItems.length?apdItems.map(i=>`<span class="badge bg-light text-dark me-1 mb-1">${UtilityService.escapeHtml(i)}</span>`).join(''):'<span class="text-muted">Tidak ada APD yang dipilih</span>'}</div>`;
+      <div class="mb-3">${apdItems.length?apdItems.map(i=>`<span class="badge bg-primary text-white me-1 mb-1">${UtilityService.escapeHtml(i)}</span>`).join(''):'<span class="text-muted">Tidak ada APD yang dipilih</span>'}</div>`;
       html+=`</div>`; // tutup report-doc-block__header
 
       // Tabel bahaya — bebas mengalir antar halaman
@@ -537,150 +541,114 @@ const ReportPage = {
   },
 
   // ============================================================
-  // COST PROJECT REPORT
+  // COST PROJECT REPORT (DIPERBAIKI - Tanpa Tabel Detail Keuangan)
   // ============================================================
   buildPOReport(projectId, company) {
     let list=[...this._data.po];
     if(projectId) list=list.filter(p=>p.project_id===projectId);
-    if(!list.length) return '<div class="alert alert-info">Tidak ada data Pembelian untuk filter yang dipilih.</div>';
+    
     const project=projectId?this._data.projects.find(p=>p.id===projectId):null;
-    const grandTotal=list.reduce((s,p)=>s+(p.total_price||0),0);
+    
     let html='';
     html+=this.buildReportHeader(company,'COST PROJECT','bi-cart');
     
     if(project) {
       html+=this.buildProjectInfoSection(project, true);
     }
-    
-    html+=`<div class="report-section-title"><i class="bi bi-cart-check"></i> Daftar Item Pembelian</div>
-    <table class="table table-bordered table-sm"><thead><tr>
-      <th class="col-width-30">No</th>
-      <th>Nama Material</th>
-      <th>Spesifikasi</th>
-      <th>Toko / Supplier</th>
-      <th class="col-width-70 text-center">Qty / Unit</th>
-      <th class="col-width-100">Harga Satuan</th>
-      <th class="col-width-100">Total Harga</th>
-      <th class="col-width-80 no-print">Tanggal</th>
-    </tr></thead><tbody>`;
-    
-    list.forEach((po,i)=>{ 
-      html+=`<tr>
-        <td class="text-center">${i+1}</td>
-        <td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td>
-        <td>${UtilityService.escapeHtml(po.specification||'-')}</td>
-        <td>${UtilityService.escapeHtml(po.supplier||'-')}</td>
-        <td class="text-center">${po.quantity||0} ${UtilityService.escapeHtml(po.unit||'')}</td>
-        <td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td>
-        <td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td>
-        <td class="text-center no-print">${UtilityService.formatDate(po.date)}</td>
-      </tr>`; 
-    });
-    
-    html+=`</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;">
-      <td colspan="6" class="text-end">TOTAL KESELURUHAN:</td>
-      <td class="text-end"><strong class="text-success">${UtilityService.formatCurrency(grandTotal)}</strong></td>
-      <td class="no-print"></td>
-    </tr></tfoot></table>`;
-    
-    html+=`<div class="report-summary-box"><div class="row">
-      <div class="col-6"><strong>Total Item:</strong> ${list.length}</div>
-      <div class="col-6 text-end"><strong>Grand Total:</strong> <span class="text-success" style="font-size:1.1rem;">${UtilityService.formatCurrency(grandTotal)}</span></div>
-    </div></div>`;
 
-    let projects=[...this._data.projects];
-    if(projectId) projects=projects.filter(p=>p.id===projectId);
-    
-    if(projects.length) {
-      let totalBudget=0, totalSpent=0;
-
-      html += `<div class="page-break"></div>`;
-      html += `<div class="report-section-title"><i class="bi bi-cash-stack"></i> Keuangan Proyek</div>`;
-
-      projects.forEach((project, index) => {
-        const poList = this._data.po.filter(p => p.project_id === project.id);
-        const totalPO = poList.reduce((s, p) => s + (p.total_price || 0), 0);
-        const budget = project.contract_value || 0;
-        const remaining = budget - totalPO;
-        const pct = budget > 0 ? Math.round((totalPO / budget) * 100) : (totalPO > 0 ? 100 : 0);
-        const pctDisplay = budget > 0 ? `${pct}%` : (totalPO > 0 ? 'Melebihi Anggaran' : '0%');
-        totalBudget += budget;
-        totalSpent += totalPO;
-
-        if (index > 0) html += `<hr style="border:2px dashed var(--color-border);margin:24px 0;">`;
-        html += `<div class="page-break-inside-avoid">`;
-        html += `<h5 class="text-primary mb-3"><i class="bi bi-building"></i> ${UtilityService.escapeHtml(project.name)}</h5>`;
-        html += `<div class="row g-3 mb-3">
-              <div class="col-4">
-                <div class="report-finance-card report-finance-card--info">
-                  <div class="report-finance-card__label">Nilai Kontrak</div>
-                  <div class="report-finance-card__value">${UtilityService.formatCurrency(budget)}</div>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="report-finance-card report-finance-card--warning">
-                  <div class="report-finance-card__label">Total Pembelian</div>
-                  <div class="report-finance-card__value">${UtilityService.formatCurrency(totalPO)}</div>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="report-finance-card ${remaining >= 0 ? 'report-finance-card--success' : 'report-finance-card--danger'}">
-                  <div class="report-finance-card__label">Sisa Anggaran</div>
-                  <div class="report-finance-card__value">${UtilityService.formatCurrency(remaining)}</div>
-                </div>
-              </div>
-            </div>`;
-        html += `<div class="progress progress--md mb-3">
-              <div class="progress-bar" style="width:${Math.max(3, Math.min(pct, 100))}%;background:${pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981'};min-width:40px;">
-                <strong>${pctDisplay}</strong>
-              </div>
-            </div>`;
-        html += `<table class="table table-bordered table-sm"><tbody>
-              ${this.createReportRow('Nama Proyek', `<strong>${UtilityService.escapeHtml(project.name)}</strong>`)}
-              ${this.createReportRow('Client', UtilityService.escapeHtml(project.client))}
-              ${this.createReportRow('Nilai Kontrak', UtilityService.formatCurrency(budget))}
-              ${this.createReportRow('Total Pengeluaran', UtilityService.formatCurrency(totalPO))}
-              ${this.createReportRow('Persentase Penggunaan', pctDisplay)}
-              ${this.createReportRow('Sisa Anggaran', `<strong class="${remaining >= 0 ? 'text-success' : 'text-danger'}">${UtilityService.formatCurrency(remaining)}</strong>`)}
-            </tbody></table>`;
-        html += `</div>`;
+    if(!list.length) {
+      html+=`<div class="flow-guard-banner">
+        <div class="flow-guard-banner__icon"><i class="bi bi-cart-x"></i></div>
+        <h5 class="flow-guard-banner__title">Belum Ada Data Pembelian</h5>
+        <p class="flow-guard-banner__description">Silakan tambahkan item pembelian melalui menu <strong>Cost Project</strong> terlebih dahulu.</p>
+        <button class="btn btn--primary no-print" onclick="UIService.navigate('pembelian')">
+          <i class="bi bi-cart"></i> Buka Cost Project
+        </button>
+      </div>`;
+    } else {
+      const grandTotal=list.reduce((s,p)=>s+(p.total_price||0),0);
+      
+      html+=`<div class="report-section-title"><i class="bi bi-cart-check"></i> Daftar Item Pembelian</div>
+      <table class="table table-bordered table-sm"><thead><tr>
+        <th class="col-width-30">No</th>
+        <th>Nama Material</th>
+        <th>Spesifikasi</th>
+        <th>Toko / Supplier</th>
+        <th class="col-width-70 text-center">Qty / Unit</th>
+        <th class="col-width-100">Harga Satuan</th>
+        <th class="col-width-100">Total Harga</th>
+        <th class="col-width-80 no-print">Tanggal</th>
+      </tr></thead><tbody>`;
+      
+      list.forEach((po,i)=>{ 
+        html+=`<tr>
+          <td class="text-center">${i+1}</td>
+          <td><strong>${UtilityService.escapeHtml(po.material_name||'-')}</strong></td>
+          <td>${UtilityService.escapeHtml(po.specification||'-')}</td>
+          <td>${UtilityService.escapeHtml(po.supplier||'-')}</td>
+          <td class="text-center">${po.quantity||0} ${UtilityService.escapeHtml(po.unit||'')}</td>
+          <td class="text-end">${UtilityService.formatCurrency(po.unit_price)}</td>
+          <td class="text-end"><strong>${UtilityService.formatCurrency(po.total_price)}</strong></td>
+          <td class="text-center no-print">${UtilityService.formatDate(po.date)}</td>
+        </tr>`; 
       });
-
-      if (!projectId && projects.length > 1) {
-        const totalRem = totalBudget - totalSpent;
-        const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : (totalSpent > 0 ? 100 : 0);
-        const totalPctDisplay = totalBudget > 0 ? `${totalPct}%` : (totalSpent > 0 ? 'Melebihi Anggaran' : '0%');
-        html += `<div class="page-break-inside-avoid">
-              <div class="report-section-title"><i class="bi bi-pie-chart"></i> Rekapitulasi Seluruh Proyek</div>
-              <div class="row g-3 mb-3">
-                <div class="col-4">
-                  <div class="report-finance-card report-finance-card--info">
-                    <div class="report-finance-card__label">Total Nilai Kontrak</div>
-                    <div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalBudget)}</div>
-                  </div>
-                </div>
-                <div class="col-4">
-                  <div class="report-finance-card report-finance-card--warning">
-                    <div class="report-finance-card__label">Total Pembelian</div>
-                    <div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalSpent)}</div>
-                  </div>
-                </div>
-                <div class="col-4">
-                  <div class="report-finance-card ${totalRem >= 0 ? 'report-finance-card--success' : 'report-finance-card--danger'}">
-                    <div class="report-finance-card__label">Sisa Total Anggaran</div>
-                    <div class="report-finance-card__value" style="font-size:1.1rem;">${UtilityService.formatCurrency(totalRem)}</div>
-                  </div>
-                </div>
-              </div>
-              <div class="progress progress--md mb-3">
-                <div class="progress-bar" style="width:${Math.max(3, Math.min(totalPct, 100))}%;background:${totalPct > 80 ? '#ef4444' : totalPct > 50 ? '#f59e0b' : '#10b981'};min-width:40px;">
-                  <strong>${totalPctDisplay}</strong>
-                </div>
-              </div>
-            </div>`;
-      }
+      
+      html+=`</tbody><tfoot><tr class="fw-bold" style="background:#f0f9ff;">
+        <td colspan="6" class="text-end">TOTAL KESELURUHAN:</td>
+        <td class="text-end"><strong class="text-success">${UtilityService.formatCurrency(grandTotal)}</strong></td>
+        <td class="no-print"></td>
+      </tr></tfoot></table>`;
+      
+      html+=`<div class="report-summary-box"><div class="row">
+        <div class="col-6"><strong>Total Item:</strong> ${list.length}</div>
+        <div class="col-6 text-end"><strong>Grand Total:</strong> <span class="text-success" style="font-size:1.1rem;">${UtilityService.formatCurrency(grandTotal)}</span></div>
+      </div></div>`;
     }
 
+    // ============================================================
+    // RINGKASAN KEUANGAN PROYEK (HANYA Kartu + Progress Bar)
+    // ============================================================
+    if(project) {
+      const budget = project.contract_value || 0;
+      const totalPO = list.reduce((s, p) => s + (p.total_price || 0), 0);
+      const remaining = budget - totalPO;
+      const pct = budget > 0 ? Math.round((totalPO / budget) * 100) : (totalPO > 0 ? 100 : 0);
+      const pctDisplay = budget > 0 ? `${pct}%` : (totalPO > 0 ? 'Melebihi Anggaran' : '0%');
+
+      html += `<div class="page-break"></div>`;
+      html += `<div class="page-break-inside-avoid">`;
+      html += `<div class="report-section-title"><i class="bi bi-cash-stack"></i> Ringkasan Keuangan Proyek</div>`;
+      
+      html += `<div class="row g-3 mb-3">
+        <div class="col-4">
+          <div class="report-finance-card report-finance-card--info">
+            <div class="report-finance-card__label">Nilai Kontrak</div>
+            <div class="report-finance-card__value">${UtilityService.formatCurrency(budget)}</div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="report-finance-card report-finance-card--warning">
+            <div class="report-finance-card__label">Total Pembelian</div>
+            <div class="report-finance-card__value">${UtilityService.formatCurrency(totalPO)}</div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="report-finance-card ${remaining >= 0 ? 'report-finance-card--success' : 'report-finance-card--danger'}">
+            <div class="report-finance-card__label">Sisa Anggaran</div>
+            <div class="report-finance-card__value">${UtilityService.formatCurrency(remaining)}</div>
+          </div>
+        </div>
+      </div>`;
+      
+      html += `<div class="progress progress--md mb-3">
+        <div class="progress-bar" style="width:${Math.max(3, Math.min(pct, 100))}%;background:${pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981'};min-width:40px;">
+          <strong>${pctDisplay}</strong>
+        </div>
+      </div>`;
+      
+      html += `</div>`;
+    }
+    
     return html + this.buildReportFooter();
   },
 
